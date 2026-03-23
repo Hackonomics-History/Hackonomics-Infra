@@ -62,14 +62,22 @@ docker compose up -d
 |---------|--------------|-------------|
 | Prometheus | http://localhost:9090 | — |
 | Grafana | http://localhost:3000 | admin / admin |
+| Kafka UI | http://localhost:8080 | — |
 | Kafka (host tooling) | `localhost:19092` | — |
 | Kafka (Docker services) | `kafka:9092` | — |
+| Kafka Exporter (metrics) | `localhost:9308/metrics` | — |
 
-Grafana auto-provisions the Prometheus datasource and loads the "Hackonomics Load Test Dashboard" on first boot — no manual UI steps required.
+Grafana auto-provisions the Prometheus datasource and loads the "Hackonomics Load Test Dashboard" and "Hackonomics Kafka" dashboard on first boot — no manual UI steps required.
 
 ### Kafka
 
 Kafka runs in KRaft mode (no Zookeeper) as a single-node broker+controller.
+
+**Application topics** (`access-logs`, `user-activities`) are created automatically by `kafka-setup` on every `docker compose up` — idempotent via `--if-not-exists`, 3 partitions each.
+
+**Kafka UI** is available at `http://localhost:8080` for real-time topic browsing, message inspection, and consumer group monitoring.
+
+**Kafka metrics** are exported to Prometheus via `kafka-exporter` (port 9308) and visualised in the "Hackonomics Kafka" Grafana dashboard covering consumer group lag, partition offsets, and broker health.
 
 **Bootstrap addresses:**
 

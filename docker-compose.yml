@@ -102,6 +102,66 @@ services:
       retries: 10
       start_period: 30s
 
+  kafka-setup:
+    image: confluentinc/cp-kafka:7.9.0
+    container_name: kafka-setup
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - shared-monitor-net
+    restart: "no"
+    command: >
+      sh -c "
+        echo '[kafka-setup] Creating topic: access-logs' &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists
+          --topic access-logs --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9092 --describe --topic access-logs &&
+        echo '[kafka-setup] Creating topic: user-activities' &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists
+          --topic user-activities --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9092 --describe --topic user-activities &&
+        echo '[kafka-setup] Done.'
+      "
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.8.0
+    container_name: kafka-exporter
+    command:
+      - --kafka.server=kafka:9092
+      - --kafka.version=3.7.0
+      - --log.level=warn
+    ports:
+      - "9308:9308"   # Prometheus scrapes via Docker network; host port for ad-hoc curl
+    networks:
+      - shared-monitor-net
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9308/metrics"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: kafka-ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: hackonomics
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL: PLAINTEXT
+      SERVER_PORT: 8080
+    ports:
+      - "8080:8080"
+    networks:
+      - shared-monitor-net
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
 networks:
   shared-monitor-net:
     external: true

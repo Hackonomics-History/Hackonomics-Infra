@@ -1,0 +1,262 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Hackonomics Kafka — broker throughput, consumer group lag, partition offsets, and partition health",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "uid": "kafka-overview",
+  "title": "Hackonomics Kafka",
+  "links": [],
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "tags": ["kafka", "hackonomics"],
+  "panels": [
+
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100, "title": "Broker Throughput", "type": "row" },
+
+    {
+      "id": 1, "type": "timeseries", "title": "Write Rate by Topic (msg/sec)",
+      "description": "Proxy for message-in rate: rate of change of the latest partition offset per topic.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (topic) (rate(kafka_topic_partition_current_offset[1m]))",
+          "legendFormat": "{{topic}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2 } } }
+    },
+
+    {
+      "id": 2, "type": "stat", "title": "Active Brokers",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "count(kafka_brokers)", "legendFormat": "brokers", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red",   "value": null },
+          { "color": "green", "value": 1 }
+        ]}
+      }}
+    },
+
+    {
+      "id": 3, "type": "stat", "title": "Total Topics",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "count(count by (topic) (kafka_topic_partitions))",
+          "legendFormat": "topics", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "blue", "value": null }] }
+      }}
+    },
+
+    {
+      "id": 4, "type": "stat", "title": "Total Partitions",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(kafka_topic_partitions)", "legendFormat": "partitions", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "blue", "value": null }] }
+      }}
+    },
+
+    {
+      "id": 5, "type": "stat", "title": "Under-replicated Partitions",
+      "description": "Should always be 0 on a single-node setup. Non-zero indicates a replication issue in multi-node deployments.",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(kafka_topic_partition_under_replicated_partition)",
+          "legendFormat": "under-replicated", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "red",   "value": 1 }
+        ]}
+      }}
+    },
+
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "id": 101, "title": "Consumer Group Lag", "type": "row" },
+
+    {
+      "id": 10, "type": "timeseries", "title": "Consumer Group Lag over Time",
+      "description": "Rising values indicate consumers are falling behind producers.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag)",
+          "legendFormat": "{{consumergroup}} / {{topic}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2 },
+        "thresholds": { "steps": [
+          { "color": "green",  "value": null },
+          { "color": "yellow", "value": 1000 },
+          { "color": "red",    "value": 10000 }
+        ]}
+      }}
+    },
+
+    {
+      "id": 11, "type": "stat", "title": "Max Lag per Consumer Group",
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "max by (consumergroup) (kafka_consumergroup_lag)",
+          "legendFormat": "{{consumergroup}}", "refId": "A" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green",  "value": null },
+          { "color": "yellow", "value": 1000 },
+          { "color": "red",    "value": 10000 }
+        ]}
+      }}
+    },
+
+    {
+      "id": 12, "type": "stat", "title": "Consumer Groups with Non-zero Lag",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "count(kafka_consumergroup_lag > 0) or vector(0)",
+          "legendFormat": "groups behind", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "red",   "value": 1 }
+        ]}
+      }}
+    },
+
+    {
+      "id": 13, "type": "stat", "title": "Consumer Groups Total",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "count(count by (consumergroup) (kafka_consumergroup_lag)) or vector(0)",
+          "legendFormat": "groups", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "blue", "value": null }] }
+      }}
+    },
+
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
+      "id": 102, "title": "Partition Offsets", "type": "row" },
+
+    {
+      "id": 20, "type": "timeseries", "title": "Current Offset by Partition",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "kafka_topic_partition_current_offset",
+          "legendFormat": "{{topic}}[{{partition}}]", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 1 } } }
+    },
+
+    {
+      "id": 21, "type": "timeseries", "title": "Oldest Offset by Partition",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "kafka_topic_partition_oldest_offset",
+          "legendFormat": "{{topic}}[{{partition}}]", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 1 } } }
+    },
+
+    {
+      "id": 22, "type": "timeseries", "title": "Messages Retained per Partition",
+      "description": "current_offset − oldest_offset. Shows how many messages are retained per partition; useful for retention tuning.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "kafka_topic_partition_current_offset - kafka_topic_partition_oldest_offset",
+          "legendFormat": "{{topic}}[{{partition}}]", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2 } } }
+    },
+
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 42 },
+      "id": 103, "title": "Partition Health", "type": "row" },
+
+    {
+      "id": 30, "type": "stat", "title": "Under-replicated Partitions",
+      "description": "Always 0 on single-node; non-zero = replication issue in multi-node.",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 43 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(kafka_topic_partition_under_replicated_partition)",
+          "legendFormat": "under-replicated", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "red",   "value": 1 }
+        ]}
+      }}
+    },
+
+    {
+      "id": 31, "type": "stat", "title": "Total Topics",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 43 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "count(count by (topic) (kafka_topic_partitions))",
+          "legendFormat": "topics", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "blue", "value": null }] }
+      }}
+    },
+
+    {
+      "id": 32, "type": "stat", "title": "Total Partitions",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 43 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(kafka_topic_partitions)", "legendFormat": "partitions", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "blue", "value": null }] }
+      }}
+    },
+
+    {
+      "id": 33, "type": "stat", "title": "Active Brokers",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 43 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "count(kafka_brokers)", "legendFormat": "brokers", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red",   "value": null },
+          { "color": "green", "value": 1 }
+        ]}
+      }}
+    }
+
+  ]
+}
