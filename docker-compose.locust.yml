@@ -1,0 +1,50 @@
+services:
+  locust-master:
+    build:
+      context: ./loadtest
+      dockerfile: Dockerfile
+    command: >
+      locust
+      --master
+      --host=${LOCUST_HOST:-http://host.docker.internal:8000}
+      --users=${LOCUST_USERS:-1000}
+      --spawn-rate=${LOCUST_SPAWN_RATE:-50}
+      --run-time=${LOCUST_RUN_TIME:-10m}
+      --prometheus-port=${LOCUST_PROMETHEUS_PORT:-9646}
+    ports:
+      - "8089:8089"      # Locust web UI
+      - "5557:5557"      # Worker communication
+      - "9646:9646"      # Prometheus metrics
+    volumes:
+      - ./loadtest:/app
+    environment:
+      - LOCUST_HOST=${LOCUST_HOST:-http://host.docker.internal:8000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - locust-net
+
+  locust-worker:
+    build:
+      context: ./loadtest
+      dockerfile: Dockerfile
+    command: >
+      locust
+      --worker
+      --master-host=locust-master
+    volumes:
+      - ./loadtest:/app
+    environment:
+      - LOCUST_HOST=${LOCUST_HOST:-http://host.docker.internal:8000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - locust-master
+    networks:
+      - locust-net
+    deploy:
+      replicas: ${LOCUST_WORKERS:-4}
+
+networks:
+  locust-net:
+    driver: bridge
