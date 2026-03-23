@@ -1,0 +1,7 @@
+env/
+.env
+
+# Docker volume data (if bind-mounted locally for debugging)
+prometheus-data/
+grafana-data/
+*.db
