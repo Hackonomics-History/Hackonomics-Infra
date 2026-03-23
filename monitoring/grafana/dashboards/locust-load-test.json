@@ -1,0 +1,249 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Hackonomics Load Test — Locust + Django + Go central-auth",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100, "title": "Locust Overview", "type": "row" },
+
+    {
+      "id": 1, "type": "stat", "title": "Active Users",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "locust_users", "legendFormat": "users", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 500 },
+          { "color": "red", "value": 900 }
+        ]}
+      }}
+    },
+
+    {
+      "id": 2, "type": "timeseries", "title": "Requests Per Second (RPS)",
+      "gridPos": { "h": 8, "w": 10, "x": 4, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(rate(locust_requests_total[1m]))", "legendFormat": "Total RPS", "refId": "A" },
+        { "expr": "sum(rate(locust_requests_total[1m])) by (name)", "legendFormat": "{{name}}", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" }}
+    },
+
+    {
+      "id": 3, "type": "timeseries", "title": "Error Rate (%)",
+      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "100 * rate(locust_requests_fail_total[1m]) / clamp_min(rate(locust_requests_total[1m]), 1)",
+          "legendFormat": "error %", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent",
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 1 },
+          { "color": "red", "value": 5 }
+        ]}
+      }}
+    },
+
+    {
+      "id": 4, "type": "timeseries", "title": "Locust Response Time P95 / P99 (ms)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(locust_response_times_bucket[1m])) by (le, name))",
+          "legendFormat": "p95 {{name}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.99, sum(rate(locust_response_times_bucket[1m])) by (le, name))",
+          "legendFormat": "p99 {{name}}", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" }}
+    },
+
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "id": 101, "title": "Django Application", "type": "row" },
+
+    {
+      "id": 10, "type": "timeseries", "title": "Django HTTP Latency P95 / P99 by View",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(django_http_requests_latency_seconds_by_view_method_bucket[1m])) by (le, view))",
+          "legendFormat": "p95 {{view}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.99, sum(rate(django_http_requests_latency_seconds_by_view_method_bucket[1m])) by (le, view))",
+          "legendFormat": "p99 {{view}}", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }}
+    },
+
+    {
+      "id": 11, "type": "timeseries", "title": "Django HTTP Responses by Status Code",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(rate(django_http_responses_total_by_status_total[1m])) by (status)",
+          "legendFormat": "HTTP {{status}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" }}
+    },
+
+    {
+      "id": 12, "type": "timeseries", "title": "Django DB Query Rate",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "rate(django_db_execute_total[1m])", "legendFormat": "DB executes/s", "refId": "A" },
+        { "expr": "rate(django_db_new_connections_total[1m])", "legendFormat": "New connections/s", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" }}
+    },
+
+    {
+      "id": 13, "type": "timeseries", "title": "Django DB Query Duration P95",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, rate(django_db_execute_many_duration_seconds_bucket[1m]))",
+          "legendFormat": "DB p95 latency", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }}
+    },
+
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "id": 102, "title": "Go Central-Auth Service", "type": "row" },
+
+    {
+      "id": 20, "type": "timeseries", "title": "Goroutine Count",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 35 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "go_goroutines{job=\"central-auth\"}", "legendFormat": "goroutines", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short",
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 5000 },
+          { "color": "red", "value": 10000 }
+        ]}
+      }}
+    },
+
+    {
+      "id": 21, "type": "timeseries", "title": "GC Duration",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 35 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "rate(go_gc_duration_seconds_sum{job=\"central-auth\"}[1m])",
+          "legendFormat": "GC time/s", "refId": "A" },
+        { "expr": "histogram_quantile(0.99, rate(go_gc_duration_seconds_bucket{job=\"central-auth\"}[1m]))",
+          "legendFormat": "GC p99", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }}
+    },
+
+    {
+      "id": 22, "type": "timeseries", "title": "Heap Memory",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 35 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "go_memstats_heap_alloc_bytes{job=\"central-auth\"}", "legendFormat": "heap alloc", "refId": "A" },
+        { "expr": "go_memstats_heap_sys_bytes{job=\"central-auth\"}", "legendFormat": "heap sys", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" }}
+    },
+
+    {
+      "id": 23, "type": "timeseries", "title": "Go HTTP Handler Latency P95 / P99",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 43 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"central-auth\"}[1m])) by (le, handler))",
+          "legendFormat": "p95 {{handler}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"central-auth\"}[1m])) by (le, handler))",
+          "legendFormat": "p99 {{handler}}", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }}
+    },
+
+    {
+      "id": 24, "type": "timeseries", "title": "Go DB Connection Pool",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 43 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "db_connections_open{job=\"central-auth\"}", "legendFormat": "open connections", "refId": "A" },
+        { "expr": "rate(db_connections_wait_duration_seconds_sum{job=\"central-auth\"}[1m])",
+          "legendFormat": "wait time/s", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }}
+    },
+
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 51 },
+      "id": 103, "title": "Infrastructure", "type": "row" },
+
+    {
+      "id": 30, "type": "timeseries", "title": "Prometheus Scrape Duration",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 52 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "scrape_duration_seconds{job=\"django\"}", "legendFormat": "django scrape", "refId": "A" },
+        { "expr": "scrape_duration_seconds{job=\"central-auth\"}", "legendFormat": "central-auth scrape", "refId": "B" },
+        { "expr": "scrape_duration_seconds{job=\"locust\"}", "legendFormat": "locust scrape", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s",
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 0.1 },
+          { "color": "red", "value": 0.5 }
+        ]}
+      }}
+    },
+
+    {
+      "id": 31, "type": "stat", "title": "Prometheus Series Count",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 52 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "prometheus_tsdb_head_series", "legendFormat": "series", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 50000 },
+          { "color": "red", "value": 200000 }
+        ]}
+      }}
+    },
+
+    {
+      "id": 32, "type": "text",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 52 },
+      "title": "Future Metrics",
+      "options": {
+        "content": "### Planned exporters\n- **redis_exporter** — memory, hit/miss ratio, connected clients\n- **kafka_exporter** — consumer group lag, topic throughput\n- **celery_exporter** (Flower) — active tasks, queue depth\n\nSee README for setup instructions.",
+        "mode": "markdown"
+      }
+    }
+
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "tags": ["hackonomics", "load-test", "locust"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Hackonomics Load Test Dashboard",
+  "uid": "hackonomics-loadtest-v1",
+  "version": 1
+}

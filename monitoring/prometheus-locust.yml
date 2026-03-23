@@ -1,0 +1,14 @@
+# Append this scrape job to Hackonomics-2026/monitoring/prometheus.yml
+#
+# Locust exposes Prometheus metrics via locust-plugins on LOCUST_PROMETHEUS_PORT (default 9646).
+# The master must be started with: locust --master --prometheus-port=9646
+#
+# Usage:
+#   cat monitoring/prometheus-locust.yml >> ../Hackonomics-2026/monitoring/prometheus.yml
+
+scrape_configs:
+  - job_name: locust
+    static_configs:
+      - targets: ["host.docker.internal:9646"]
+    scrape_interval: 5s
+    metrics_path: /metrics

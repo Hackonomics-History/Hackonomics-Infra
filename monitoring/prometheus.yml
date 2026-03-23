@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: central-auth
+    static_configs:
+      - targets: ["auth-server:8081"]
+    metrics_path: /metrics
+
+  - job_name: django
+    static_configs:
+      - targets: ["django-app:8000"]
+    metrics_path: /metrics
+
+  - job_name: locust
+    static_configs:
+      - targets: ["host.docker.internal:9646"]
+    metrics_path: /metrics
+    scrape_interval: 5s
