@@ -1,7 +1,29 @@
 services:
+  # Generates /cfg/prometheus.yml from prometheus.yml.tmpl + env vars at every
+  # docker compose up, so credential rotation requires no manual file editing.
+  prometheus-config-init:
+    build:
+      context: ./monitoring
+      dockerfile: Dockerfile.envsubst
+    container_name: prometheus-config-init
+    env_file:
+      - ./env/.env.prod
+    volumes:
+      - ./monitoring/prometheus.yml.tmpl:/tmpl/prometheus.yml.tmpl:ro
+      - prometheus-config:/cfg
+    command: >
+      sh -c "envsubst < /tmpl/prometheus.yml.tmpl > /cfg/prometheus.yml &&
+             echo '[OK] prometheus.yml generated'"
+    restart: "no"
+
   prometheus:
     image: prom/prometheus:v3.2.1
     container_name: prometheus
+    env_file:
+      - ./env/.env.prod
+    depends_on:
+      prometheus-config-init:
+        condition: service_completed_successfully
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -10,7 +32,7 @@ services:
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-config:/etc/prometheus:ro
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
@@ -21,6 +43,8 @@ services:
   grafana:
     image: grafana/grafana:11.5.2
     container_name: grafana
+    env_file:
+      - ./env/.env.prod
     depends_on:
       - prometheus
     volumes:
@@ -31,17 +55,59 @@ services:
     ports:
       - "3000:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: ${GF_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_USER: ${GF_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD}
     networks:
       - shared-monitor-net
     restart: unless-stopped
     stop_grace_period: 30s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.9.0
+    container_name: kafka
+    hostname: kafka
+    env_file:
+      - ./env/.env
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:19092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_RETENTION_BYTES: 1073741824
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID}
+    ports:
+      - "19092:19092"   # EXTERNAL listener — host tooling only
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - shared-monitor-net
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
 networks:
   shared-monitor-net:
     external: true
 
 volumes:
+  prometheus-config:
   prometheus-data:
   grafana-data:
+  kafka-data:

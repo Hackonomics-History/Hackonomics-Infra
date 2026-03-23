@@ -1,7 +1,11 @@
 env/
 .env
 
+# Generated from prometheus.yml.tmpl via scripts/generate-env.sh — contains plaintext credentials
+monitoring/prometheus.yml
+
 # Docker volume data (if bind-mounted locally for debugging)
 prometheus-data/
 grafana-data/
+kafka-data/
 *.db

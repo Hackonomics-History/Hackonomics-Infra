@@ -58,12 +58,46 @@ services:
 docker compose up -d
 ```
 
-| Service | URL | Credentials |
-|---------|-----|-------------|
+| Service | URL / Address | Credentials |
+|---------|--------------|-------------|
 | Prometheus | http://localhost:9090 | — |
 | Grafana | http://localhost:3000 | admin / admin |
+| Kafka (host tooling) | `localhost:19092` | — |
+| Kafka (Docker services) | `kafka:9092` | — |
 
 Grafana auto-provisions the Prometheus datasource and loads the "Hackonomics Load Test Dashboard" on first boot — no manual UI steps required.
+
+### Kafka
+
+Kafka runs in KRaft mode (no Zookeeper) as a single-node broker+controller.
+
+**Bootstrap addresses:**
+
+| Caller | Address | Listener |
+|--------|---------|----------|
+| Containers on `shared-monitor-net` (`central-auth`, `django-app`) | `kafka:9092` | INTERNAL |
+| Host-side tooling (`kcat`, CLI scripts, Kafka UI) | `localhost:19092` | EXTERNAL |
+
+**Cluster ID** — stored in `env/.env` as `KAFKA_CLUSTER_ID`. Generated once with:
+
+```bash
+docker run --rm confluentinc/cp-kafka:7.9.0 kafka-storage random-uuid
+```
+
+> Do not change `KAFKA_CLUSTER_ID` while the `kafka-data` volume contains data — a mismatch causes `InconsistentClusterIdException` on startup.
+> To start fresh: `docker compose down -v` then regenerate the ID.
+
+**Quick validation:**
+
+```bash
+# Confirm broker reachable from host
+docker run --rm --network host confluentinc/cp-kafka:7.9.0 \
+  kafka-broker-api-versions --bootstrap-server localhost:19092
+
+# Confirm broker reachable from within the Docker network
+docker run --rm --network shared-monitor-net confluentinc/cp-kafka:7.9.0 \
+  kafka-broker-api-versions --bootstrap-server kafka:9092
+```
 
 ### Volume management
 
