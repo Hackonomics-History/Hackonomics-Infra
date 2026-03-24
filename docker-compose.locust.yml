@@ -10,11 +10,10 @@ services:
       --users=${LOCUST_USERS:-1000}
       --spawn-rate=${LOCUST_SPAWN_RATE:-50}
       --run-time=${LOCUST_RUN_TIME:-10m}
-      --prometheus-port=${LOCUST_PROMETHEUS_PORT:-9646}
     ports:
-      - "8089:8089"      # Locust web UI
-      - "5557:5557"      # Worker communication
-      - "9646:9646"      # Prometheus metrics
+      - "8089:8089" # Locust web UI
+      - "5557:5557" # Worker communication
+      - "9646:9646" # Prometheus metrics
     volumes:
       - ./loadtest:/app
     environment:
@@ -45,6 +44,22 @@ services:
     deploy:
       replicas: ${LOCUST_WORKERS:-4}
 
+  locust-exporter:
+    image: containersol/locust_exporter:latest
+    container_name: locust-exporter
+    command:
+      - --locust.uri=http://locust-master:8089
+    ports:
+      - "9646:9646"   # Prometheus scrapes via shared-monitor-net; host port for ad-hoc curl
+    networks:
+      - locust-net
+      - shared-monitor-net
+    depends_on:
+      - locust-master
+    restart: unless-stopped
+
 networks:
   locust-net:
     driver: bridge
+  shared-monitor-net:
+    external: true
