@@ -7,9 +7,33 @@ or wrapped in @task inside a user class when needed.
 
 import logging
 
-from conftest import AUTH_LOGIN, AUTH_LOGOUT, AUTH_REFRESH, AUTH_ME
+from conftest import AUTH_LOGIN, AUTH_LOGOUT, AUTH_REFRESH, AUTH_ME, AUTH_SIGNUP
 
 logger = logging.getLogger(__name__)
+
+
+def do_signup(client, email: str, password: str) -> bool:
+    """POST /api/auth/signup/ — register a new identity in Kratos.
+
+    Returns True on 200/201 (created) and 409 (already exists) so the seeder
+    can be re-run without counting duplicates as failures.
+    """
+    payload = {"email": email, "password": password}
+    with client.post(
+        AUTH_SIGNUP,
+        json=payload,
+        name="[seeder] signup",
+        catch_response=True,
+    ) as resp:
+        if resp.status_code in (200, 201):
+            logger.debug("Signup OK: %s", email)
+            return True
+        if resp.status_code == 409:
+            resp.success()  # idempotent re-run — not a failure
+            return True
+        resp.failure(f"Signup failed: {resp.status_code} — {resp.text[:200]}")
+        logger.error("Signup failed for %s: %s", email, resp.status_code)
+        return False
 
 
 def do_login(client, credentials: dict) -> bool:
