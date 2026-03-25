@@ -67,12 +67,12 @@ services:
     container_name: kafka
     hostname: kafka
     env_file:
-      - ./env/.env
+      - ./env/.env.prod
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:19092,CONTROLLER://0.0.0.0:9093
+      KAFKA_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://0.0.0.0:19092,CONTROLLER://kafka:9093
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:19092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
@@ -111,18 +111,17 @@ services:
     networks:
       - shared-monitor-net
     restart: "no"
-    command: >
-      sh -c "
+    command:
+      - sh
+      - -c
+      - |
         echo '[kafka-setup] Creating topic: access-logs' &&
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists
-          --topic access-logs --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic access-logs --partitions 3 --replication-factor 1 &&
         kafka-topics --bootstrap-server kafka:9092 --describe --topic access-logs &&
         echo '[kafka-setup] Creating topic: user-activities' &&
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists
-          --topic user-activities --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic user-activities --partitions 3 --replication-factor 1 &&
         kafka-topics --bootstrap-server kafka:9092 --describe --topic user-activities &&
         echo '[kafka-setup] Done.'
-      "
 
   kafka-exporter:
     image: danielqsj/kafka-exporter:v1.8.0
