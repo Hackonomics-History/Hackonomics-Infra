@@ -9,13 +9,19 @@ scrape_configs:
 
   - job_name: central-auth
     static_configs:
-      - targets: ["auth-server:8081"]
+      - targets: ["auth-server:9091"]
     metrics_path: /metrics
+    basic_auth:
+      username: admin
+      password: x96CbdEHFMWD5n3wvbigWIplMD8BgYNIQxCYGQvYwt8=
 
   - job_name: django
     static_configs:
       - targets: ["django-app:8000"]
     metrics_path: /metrics
+    basic_auth:
+      username: admin
+      password: x96CbdEHFMWD5n3wvbigWIplMD8BgYNIQxCYGQvYwt8=
 
   - job_name: locust
     static_configs:
