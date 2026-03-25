@@ -13,7 +13,6 @@ services:
     ports:
       - "8089:8089" # Locust web UI
       - "5557:5557" # Worker communication
-      - "9646:9646" # Prometheus metrics
     volumes:
       - ./loadtest:/app
     environment:
@@ -50,7 +49,7 @@ services:
     command:
       - --locust.uri=http://locust-master:8089
     ports:
-      - "9646:9646"   # Prometheus scrapes via shared-monitor-net; host port for ad-hoc curl
+      - "9646:9646" # Prometheus scrapes via shared-monitor-net; host port for ad-hoc curl
     networks:
       - locust-net
       - shared-monitor-net
