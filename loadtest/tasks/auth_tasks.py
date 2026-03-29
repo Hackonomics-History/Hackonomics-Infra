@@ -18,7 +18,11 @@ def do_signup(client, email: str, password: str) -> bool:
     Returns True on 200/201 (created) and 409 (already exists) so the seeder
     can be re-run without counting duplicates as failures.
     """
-    payload = {"email": email, "password": password}
+    payload = {
+        "email": email,
+        "password": password,
+        "confirm_password": password
+    }
     with client.post(
         AUTH_SIGNUP,
         json=payload,
@@ -31,8 +35,10 @@ def do_signup(client, email: str, password: str) -> bool:
         if resp.status_code == 409:
             resp.success()  # idempotent re-run — not a failure
             return True
-        resp.failure(f"Signup failed: {resp.status_code} — {resp.text[:200]}")
-        logger.error("Signup failed for %s: %s", email, resp.status_code)
+        
+        error_msg = f"Signup failed: {resp.status_code} — {resp.text[:500]}"
+        resp.failure(error_msg)
+        logger.error("Signup failed for %s: %s", email, error_msg)
         return False
 
 
@@ -48,6 +54,7 @@ def do_login(client, credentials: dict) -> bool:
         "device_id": credentials["device_id"],
         "remember_me": False,
     }
+    
     with client.post(
         AUTH_LOGIN,
         json=payload,
@@ -56,8 +63,10 @@ def do_login(client, credentials: dict) -> bool:
     ) as resp:
         if resp.status_code == 200:
             return True
-        resp.failure(f"Login failed: {resp.status_code} — {resp.text[:200]}")
-        logger.error("Login failed for %s: %s", credentials["email"], resp.status_code)
+        
+        error_msg = f"Login failed: {resp.status_code} — {resp.text[:500]}"
+        resp.failure(error_msg)
+        logger.error("Login failed for %s: %s", credentials["email"], error_msg)
         return False
 
 

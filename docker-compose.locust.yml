@@ -21,6 +21,7 @@ services:
       - "host.docker.internal:host-gateway"
     networks:
       - locust-net
+      - shared-monitor-net
 
   locust-worker:
     build:
@@ -40,6 +41,7 @@ services:
       - locust-master
     networks:
       - locust-net
+      - shared-monitor-net
     deploy:
       replicas: ${LOCUST_WORKERS:-4}
 

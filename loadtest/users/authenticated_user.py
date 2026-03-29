@@ -19,6 +19,7 @@ Weight distribution (total = 27):
 """
 
 from locust import HttpUser, between, task
+from locust.exception import StopUser
 
 from helpers import user_pool
 from helpers.token_refresh import TokenRefreshMixin
@@ -42,16 +43,15 @@ class AuthenticatedUser(TokenRefreshMixin, HttpUser):
         self._credentials = user_pool.acquire()
         success = do_login(self.client, self._credentials)
         if not success:
-            # If login fails, stop this simulated user immediately so the
-            # error is visible in the stats without flooding the test.
-            self.environment.runner.quit()
-            return
+            user_pool.release(self._credentials)
+            self._credentials = None
+            raise StopUser()
         self.record_login()
         self.email = self._credentials["email"]
 
     def on_stop(self) -> None:
-        do_logout(self.client)
-        if self._credentials:
+        if hasattr(self, "_credentials") and self._credentials:
+            do_logout(self.client)
             user_pool.release(self._credentials)
             self._credentials = None
 

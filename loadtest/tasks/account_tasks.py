@@ -9,8 +9,7 @@ import random
 from conftest import (
     ACCOUNT_ME,
     ACCOUNT_EXCHANGE_RATE,
-    COUNTRY_CODES,
-    CURRENCIES,
+    COUNTRY_CURRENCY_PAIRS,
 )
 
 
@@ -32,11 +31,12 @@ def update_account(client) -> None:
     Triggers outbox event → Kafka → consumer pipeline.
     Keep task weight low (1) to avoid overwhelming the event pipeline.
     """
+    country_code, currency = random.choice(COUNTRY_CURRENCY_PAIRS)
     payload = {
-        "country_code": random.choice(COUNTRY_CODES),
-        "currency": random.choice(CURRENCIES),
-        "annual_income": random.randint(30_000, 200_000),
-        "monthly_investable_amount": random.randint(500, 5_000),
+        "country_code": country_code,
+        "currency": currency,
+        "annual_income": round(random.uniform(30_000, 200_000), 2),
+        "monthly_investable_amount": round(random.uniform(500, 5_000), 2),
     }
     with client.put(
         ACCOUNT_ME,

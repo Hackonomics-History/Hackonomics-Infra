@@ -50,6 +50,26 @@ COUNTRY_CODES = [
     "SG", "IN", "BR", "MX", "SE", "NO", "CH",
 ]
 
+# Pre-validated (country_code, currency) pairs for AccountUpdateSerializer.
+# Each pair is guaranteed valid by the REST Countries data used in the meta app.
+# US/USD is excluded because USD is absent from the CURRENCIES list above.
+COUNTRY_CURRENCY_PAIRS = [
+    ("KR", "KRW"),
+    ("JP", "JPY"),
+    ("GB", "GBP"),
+    ("DE", "EUR"),
+    ("FR", "EUR"),
+    ("AU", "AUD"),
+    ("CA", "CAD"),
+    ("SG", "SGD"),
+    ("IN", "INR"),
+    ("BR", "BRL"),
+    ("MX", "MXN"),
+    ("SE", "SEK"),
+    ("NO", "NOK"),
+    ("CH", "CHF"),
+]
+
 SIMULATION_PERIODS = ["1y", "2y", "3y", "5y"]
 
 # Calendar event categories (must match values seeded in the DB)

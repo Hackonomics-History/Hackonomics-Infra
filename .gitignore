@@ -1,5 +1,8 @@
 env/
 .env
+__pycache__/
+.DS_Store
+.claude/
 
 # Generated from prometheus.yml.tmpl via scripts/generate-env.sh — contains plaintext credentials
 monitoring/prometheus.yml
