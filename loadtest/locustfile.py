@@ -21,6 +21,7 @@ from locust import events
 
 from users.authenticated_user import AuthenticatedUser  # noqa: F401
 from users.anonymous_user import AnonymousUser          # noqa: F401
+from users.seeder_user import KratosSeeder              # noqa: F401
 from helpers import user_pool
 
 logger = logging.getLogger(__name__)
