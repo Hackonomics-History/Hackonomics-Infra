@@ -4,25 +4,25 @@ Load test and infrastructure orchestration for the Hackonomics platform.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Hackonomics-Infra                         │
+│                    Hackonomics-Infra                        │
 │                                                             │
 │  docker-compose.locust.yml                                  │
-│  ┌──────────────────┐   ┌──────────────────────────────┐   │
-│  │  locust-master   │──▶│  locust-worker (×4)          │   │
-│  │  :8089 (UI)      │   │  AuthenticatedUser weight=9  │   │
-│  │  :9646 (metrics) │   │  AnonymousUser      weight=1 │   │
-│  └──────────────────┘   └──────────────────────────────┘   │
+│  ┌──────────────────┐   ┌──────────────────────────────┐    │
+│  │  locust-master   │──▶│  locust-worker (×4)          │    │
+│  │  :8089 (UI)      │   │  AuthenticatedUser weight=9  │    │
+│  │  :9646 (metrics) │   │  AnonymousUser      weight=1 │    │
+│  └──────────────────┘   └──────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
                │ HTTP traffic
                ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              Hackonomics-2026 stack (host network)          │
 │                                                             │
-│  Django :8000  ──► Go central-auth :8081                   │
-│       │                    │                               │
-│       ▼                    ▼                               │
-│  PostgreSQL :5431    Redis :6380  Kafka :9092              │
-│  Qdrant :6333        Prometheus :9090  Grafana :3000       │
+│  Django :8000  ──► Go central-auth :8081                    │
+│       │                    │                                │
+│       ▼                    ▼                                │
+│  PostgreSQL :5431    Redis :6380  Kafka :9092               │
+│  Qdrant :6333        Prometheus :9090  Grafana :3000        │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -53,10 +53,6 @@ services:
 ```
 
 ### Start the monitoring stack
-
-```bash
-docker compose up -d
-```
 
 | Service | URL / Address | Credentials |
 |---------|--------------|-------------|
@@ -256,36 +252,3 @@ go_goroutines{job="central-auth"}
 | Stress test error rate (1,000 users) | < 5% |
 | Go goroutines post ramp-down | ≤ baseline within 30s |
 | Go GC pause P99 at 1,000 users | < 10ms |
-
-## File Structure
-
-```
-Hackonomics-Infra/
-├── README.md
-├── .env.example
-├── docker-compose.locust.yml
-├── monitoring/
-│   ├── prometheus-locust.yml
-│   └── grafana/dashboards/locust-load-test.json
-└── loadtest/
-    ├── Dockerfile
-    ├── requirements.txt
-    ├── locustfile.py          ← entry point
-    ├── conftest.py            ← shared constants
-    ├── data/test_users.json   ← 200 pre-seeded credentials
-    ├── scripts/seed_users.py  ← register users via API
-    ├── helpers/
-    │   ├── user_pool.py       ← thread-safe credential pool
-    │   └── token_refresh.py   ← proactive JWT refresh mixin
-    ├── users/
-    │   ├── authenticated_user.py
-    │   └── anonymous_user.py
-    └── tasks/
-        ├── auth_tasks.py
-        ├── news_tasks.py
-        ├── exchange_tasks.py
-        ├── meta_tasks.py
-        ├── account_tasks.py
-        ├── simulation_tasks.py
-        └── calendar_tasks.py
-```
