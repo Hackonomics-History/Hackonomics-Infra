@@ -3,6 +3,7 @@ env/
 __pycache__/
 .DS_Store
 .claude/
+venv/
 
 # Generated from prometheus.yml.tmpl via scripts/generate-env.sh — contains plaintext credentials
 monitoring/prometheus.yml
