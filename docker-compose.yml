@@ -121,6 +121,12 @@ services:
         echo '[kafka-setup] Creating topic: user-activities' &&
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic user-activities --partitions 3 --replication-factor 1 &&
         kafka-topics --bootstrap-server kafka:9092 --describe --topic user-activities &&
+        echo '[kafka-setup] Creating topic: user-activities.retry-1' &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic user-activities.retry-1 --partitions 3 --replication-factor 1 --config retention.ms=86400000 &&
+        echo '[kafka-setup] Creating topic: user-activities.retry-2' &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic user-activities.retry-2 --partitions 3 --replication-factor 1 --config retention.ms=259200000 &&
+        echo '[kafka-setup] Creating topic: user-activities.dlt' &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic user-activities.dlt --partitions 3 --replication-factor 1 --config retention.ms=604800000 &&
         echo '[kafka-setup] Done.'
 
   kafka-exporter:
