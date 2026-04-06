@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "central-auth.fullname" . }}
+  labels:
+    {{- include "central-auth.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.hpa.enabled }}
+  replicas: {{ .Values.hpa.minReplicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "central-auth.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # Restart pods when Secret or pgBouncer ConfigMap content changes.
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/pgbouncer: {{ include (print $.Template.BasePath "/configmap-pgbouncer.yaml") . | sha256sum }}
+      labels:
+        {{- include "central-auth.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        # ── auth-server (Go) ─────────────────────────────────────────────────────
+        - name: auth-server
+          image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.httpPort }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.app.grpcPort }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.app.metricsPort }}
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ include "central-auth.fullname" . }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          # gRPC health check: httpGet cannot speak gRPC — use exec with grpc-health-probe.
+          # The binary must be present in the container image (add to Dockerfile).
+          livenessProbe:
+            exec:
+              command:
+                - grpc-health-probe
+                - -addr=:{{ .Values.app.grpcPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.app.resources | nindent 12 }}
+
+        # ── pgBouncer sidecar ────────────────────────────────────────────────────
+        # Pool mode: transaction — Go issues short discrete queries with no
+        # per-connection state, so connections can be returned to the pool
+        # between statements for maximum reuse.
+        - name: pgbouncer
+          image: "{{ .Values.pgbouncer.image.repository }}:{{ .Values.pgbouncer.image.tag }}"
+          imagePullPolicy: {{ .Values.pgbouncer.image.pullPolicy }}
+          ports:
+            - name: pgbouncer
+              containerPort: {{ .Values.pgbouncer.listenPort }}
+              protocol: TCP
+          volumeMounts:
+            - name: pgbouncer-config
+              mountPath: /etc/pgbouncer
+              readOnly: true
+          livenessProbe:
+            tcpSocket:
+              port: pgbouncer
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: pgbouncer
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.pgbouncer.resources | nindent 12 }}
+
+      volumes:
+        - name: pgbouncer-config
+          configMap:
+            name: {{ include "central-auth.fullname" . }}-pgbouncer

@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "kafka.fullname" . }}
+  labels:
+    {{- include "kafka.labels" . | nindent 4 }}
+spec:
+  # Headless service enables stable pod-0 DNS for KRaft quorum voter config.
+  serviceName: {{ include "kafka.headlessName" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kafka.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kafka.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: kafka
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: internal
+              containerPort: {{ .Values.service.internalPort }}
+              protocol: TCP
+            - name: external
+              containerPort: {{ .Values.service.externalPort }}
+              protocol: TCP
+            - name: controller
+              containerPort: {{ .Values.service.controllerPort }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "kafka.fullname" . }}-config
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+          livenessProbe:
+            exec:
+              command:
+                - kafka-broker-api-versions
+                - --bootstrap-server
+                - {{ printf "localhost:%d" (int .Values.service.internalPort) | quote }}
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 6
+            timeoutSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - kafka-broker-api-versions
+                - --bootstrap-server
+                - {{ printf "localhost:%d" (int .Values.service.internalPort) | quote }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "kafka.fullname" . }}-data

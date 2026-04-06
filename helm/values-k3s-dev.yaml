@@ -1,0 +1,33 @@
+# K3s development environment overrides.
+# Apply with: helm upgrade --install hackonomics ./helm/hackonomics-infra -f ./helm/values-k3s-dev.yaml
+#
+# IMPORTANT: Never commit real passwords. Use a secret manager or Sealed Secrets for production.
+
+postgres-go:
+  postgres:
+    password: "dev-central-auth-pass"
+
+postgres-django:
+  postgres:
+    password: "dev-hackonomics-pass"
+
+# Kafka clusterId must be stable across restarts — generate once with:
+#   kubectl exec -it <kafka-pod> -- kafka-storage random-uuid
+# and commit the result here (it is not a secret).
+kafka:
+  clusterId: "MkU3OEVBNTcwNTJENDM2Qg"
+
+central-auth:
+  app:
+    sentryDsn: "https://dev@sentry.example.com/1"
+    serviceApiKey: "dev-service-api-key"
+  postgres:
+    password: "dev-central-auth-pass"
+
+hackonomics-app:
+  app:
+    sentryDsn: "https://dev@sentry.example.com/2"
+    djangoSecretKey: "dev-django-secret-key-change-in-prod"
+    allowedHosts: "*"
+  postgres:
+    password: "dev-hackonomics-pass"

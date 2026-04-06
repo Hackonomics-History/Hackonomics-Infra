@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kafka.fullname" . }}-config
+  labels:
+    {{- include "kafka.labels" . | nindent 4 }}
+data:
+  # KRaft environment variables injected into the Kafka container.
+  # KAFKA_NODE_ID and KAFKA_PROCESS_ROLES configure this broker as a
+  # combined broker+controller node (single-node KRaft mode).
+  KAFKA_NODE_ID: "1"
+  KAFKA_PROCESS_ROLES: "broker,controller"
+  CLUSTER_ID: {{ required "clusterId is required — generate with: kafka-storage random-uuid" .Values.clusterId | quote }}
+
+  # Listeners:
+  #   INTERNAL  — used by in-cluster clients (services in the same namespace)
+  #   EXTERNAL  — exposed via NodePort for out-of-cluster access
+  #   CONTROLLER — KRaft raft protocol between controller nodes
+  KAFKA_LISTENERS: {{ printf "INTERNAL://0.0.0.0:%d,EXTERNAL://0.0.0.0:%d,CONTROLLER://0.0.0.0:%d"
+    (int .Values.service.internalPort)
+    (int .Values.service.externalPort)
+    (int .Values.service.controllerPort) | quote }}
+
+  KAFKA_ADVERTISED_LISTENERS: {{ printf "INTERNAL://%s:%d,EXTERNAL://localhost:%d"
+    (include "kafka.fullname" .)
+    (int .Values.service.internalPort)
+    (int .Values.service.externalPort) | quote }}
+
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
+  KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+  KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+
+  # Single-node KRaft quorum — pod-0 is always the controller.
+  KAFKA_CONTROLLER_QUORUM_VOTERS: {{ printf "1@%s:%d"
+    (include "kafka.pod0DNS" .)
+    (int .Values.service.controllerPort) | quote }}
+
+  KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+  KAFKA_DEFAULT_REPLICATION_FACTOR: "1"
+  KAFKA_MIN_INSYNC_REPLICAS: "1"

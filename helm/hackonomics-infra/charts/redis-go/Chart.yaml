@@ -1,0 +1,6 @@
+apiVersion: v2
+name: redis-go
+description: Redis instance for the Go (Central-Auth) service
+type: application
+version: 0.1.0
+appVersion: "7"

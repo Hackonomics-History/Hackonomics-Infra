@@ -1,0 +1,29 @@
+apiVersion: v2
+name: hackonomics-infra
+description: Umbrella chart for Hackonomics-2026 stateful infrastructure (K3s)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: postgres-go
+    version: 0.1.0
+    repository: "file://charts/postgres-go"
+  - name: postgres-django
+    version: 0.1.0
+    repository: "file://charts/postgres-django"
+  - name: redis-go
+    version: 0.1.0
+    repository: "file://charts/redis-go"
+  - name: redis-django
+    version: 0.1.0
+    repository: "file://charts/redis-django"
+  - name: kafka
+    version: 0.1.0
+    repository: "file://charts/kafka"
+  - name: central-auth
+    version: 0.1.0
+    repository: "file://charts/central-auth"
+  - name: hackonomics-app
+    version: 0.1.0
+    repository: "file://charts/hackonomics-app"

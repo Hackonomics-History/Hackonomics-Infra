@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "kafka.fullname" . }}-setup
+  labels:
+    {{- include "kafka.labels" . | nindent 4 }}
+  annotations:
+    # Re-run topic creation on each helm upgrade.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "kafka.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: setup
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: kafka-setup
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              BOOTSTRAP={{ printf "%s:%d" (include "kafka.fullname" .) (int .Values.service.internalPort) | quote }}
+              echo "[kafka-setup] Waiting for broker at ${BOOTSTRAP}..."
+              until kafka-broker-api-versions --bootstrap-server ${BOOTSTRAP} > /dev/null 2>&1; do
+                echo "[kafka-setup] Broker not ready, retrying in 5s..."
+                sleep 5
+              done
+              echo "[kafka-setup] Broker ready."
+              {{- range .Values.topics }}
+              echo "[kafka-setup] Ensuring topic: {{ .name }}"
+              kafka-topics \
+                --bootstrap-server ${BOOTSTRAP} \
+                --create \
+                --if-not-exists \
+                --topic {{ .name | quote }} \
+                --partitions {{ .partitions }} \
+                --replication-factor {{ .replicationFactor }} \
+                {{- if .retentionMs }}
+                --config retention.ms={{ .retentionMs }}
+                {{- end }}
+              {{- end }}
+              echo "[kafka-setup] All topics ready."

@@ -1,0 +1,40 @@
+---
+# ClusterIP service — used by in-cluster clients to reach the broker.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kafka.fullname" . }}
+  labels:
+    {{- include "kafka.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "kafka.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: internal
+      port: {{ .Values.service.internalPort }}
+      targetPort: internal
+      protocol: TCP
+---
+# Headless service — required by the StatefulSet to assign stable pod DNS names.
+# The KRaft controller quorum voter address resolves via this service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kafka.headlessName" . }}
+  labels:
+    {{- include "kafka.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    {{- include "kafka.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: controller
+      port: {{ .Values.service.controllerPort }}
+      targetPort: controller
+      protocol: TCP
+    - name: internal
+      port: {{ .Values.service.internalPort }}
+      targetPort: internal
+      protocol: TCP

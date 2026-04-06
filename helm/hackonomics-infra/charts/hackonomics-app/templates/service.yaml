@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hackonomics-app.fullname" . }}
+  labels:
+    {{- include "hackonomics-app.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  # Selects only web pods via the component label — worker and beat pods are excluded.
+  selector:
+    {{- include "hackonomics-app.selectorLabels.web" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.web.port }}
+      targetPort: http
+      protocol: TCP

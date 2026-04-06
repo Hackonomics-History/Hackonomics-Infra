@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hackonomics-app.fullname" . }}-beat
+  labels:
+    {{- include "hackonomics-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: beat
+spec:
+  # ╔══════════════════════════════════════════════════════════════════════════╗
+  # ║  SINGLETON — celery-beat MUST NEVER run more than one replica.          ║
+  # ║  Multiple beat instances cause duplicate scheduled task execution.      ║
+  # ║  Do NOT add an HPA for this Deployment.  Do NOT change replicas: 1.     ║
+  # ╚══════════════════════════════════════════════════════════════════════════╝
+  replicas: 1
+  # Recreate ensures the old pod is fully terminated before the new one starts.
+  # RollingUpdate (the default) could briefly run two beat pods during a deploy.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "hackonomics-app.selectorLabels.beat" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "hackonomics-app.selectorLabels.beat" . | nindent 8 }}
+    spec:
+      containers:
+        # ── Celery beat (scheduler) ──────────────────────────────────────────────
+        # No pgBouncer sidecar — same rationale as the worker.
+        - name: beat
+          image: "{{ .Values.beat.image.repository }}:{{ .Values.beat.image.tag }}"
+          imagePullPolicy: {{ .Values.beat.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.beat.command | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ include "hackonomics-app.fullname" . }}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hackonomics-app.fullname" . }}
+                  key: DATABASE_URL_DIRECT
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - config
+                - inspect
+                - ping
+                - --timeout
+                - "10"
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.beat.resources | nindent 12 }}

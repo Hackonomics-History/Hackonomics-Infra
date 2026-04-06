@@ -1,0 +1,24 @@
+dependencies:
+- name: postgres-go
+  repository: file://charts/postgres-go
+  version: 0.1.0
+- name: postgres-django
+  repository: file://charts/postgres-django
+  version: 0.1.0
+- name: redis-go
+  repository: file://charts/redis-go
+  version: 0.1.0
+- name: redis-django
+  repository: file://charts/redis-django
+  version: 0.1.0
+- name: kafka
+  repository: file://charts/kafka
+  version: 0.1.0
+- name: central-auth
+  repository: file://charts/central-auth
+  version: 0.1.0
+- name: hackonomics-app
+  repository: file://charts/hackonomics-app
+  version: 0.1.0
+digest: sha256:83ccc4a74291a8117304632ede98a900cc332a73f10093b745adce40ec03543d
+generated: "2026-04-04T11:37:00.340127+09:00"

@@ -7,6 +7,7 @@ services:
       dockerfile: Dockerfile.envsubst
     container_name: prometheus-config-init
     env_file:
+      - ../.env.shared
       - ./env/.env.prod
     volumes:
       - ./monitoring/prometheus.yml.tmpl:/tmpl/prometheus.yml.tmpl:ro
@@ -34,11 +35,33 @@ services:
     volumes:
       - prometheus-config:/etc/prometheus:ro
       - prometheus-data:/prometheus
+      - ./monitoring/alerts:/etc/prometheus/alerts:ro
     ports:
       - "9090:9090"
     networks:
       - shared-monitor-net
     restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--log.level=info'
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - "9093:9093"
+    networks:
+      - shared-monitor-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9093/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   grafana:
     image: grafana/grafana:11.5.2
@@ -176,3 +199,4 @@ volumes:
   prometheus-data:
   grafana-data:
   kafka-data:
+  alertmanager-data:
