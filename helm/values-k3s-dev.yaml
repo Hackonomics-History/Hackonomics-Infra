@@ -1,15 +1,20 @@
 # K3s development environment overrides.
 # Apply with: helm upgrade --install hackonomics ./helm/hackonomics-infra -f ./helm/values-k3s-dev.yaml
 #
-# IMPORTANT: Never commit real passwords. Use a secret manager or Sealed Secrets for production.
+# SECURITY: This file is committed to git — it MUST NOT contain real secrets.
+# Credential fields (serviceApiKey, djangoSecretKey, postgres passwords) are
+# injected at deploy time via ArgoCD Vault Plugin or Sealed Secrets.
+# Only non-sensitive overrides (clusterId, allowedHosts, resource sizes) live here.
 
 postgres-go:
   postgres:
-    password: "dev-central-auth-pass"
+    # INJECT via Sealed Secret — do not set here
+    password: ""
 
 postgres-django:
   postgres:
-    password: "dev-hackonomics-pass"
+    # INJECT via Sealed Secret — do not set here
+    password: ""
 
 # Kafka clusterId must be stable across restarts — generate once with:
 #   kubectl exec -it <kafka-pod> -- kafka-storage random-uuid
@@ -20,14 +25,18 @@ kafka:
 central-auth:
   app:
     sentryDsn: "https://dev@sentry.example.com/1"
-    serviceApiKey: "dev-service-api-key"
+    # INJECT via Sealed Secret — do not set here
+    serviceApiKey: ""
   postgres:
-    password: "dev-central-auth-pass"
+    # INJECT via Sealed Secret — do not set here
+    password: ""
 
 hackonomics-app:
   app:
     sentryDsn: "https://dev@sentry.example.com/2"
-    djangoSecretKey: "dev-django-secret-key-change-in-prod"
-    allowedHosts: "*"
+    # INJECT via Sealed Secret — do not set here
+    djangoSecretKey: ""
+    allowedHosts: "hackonomics.dev.local"
   postgres:
-    password: "dev-hackonomics-pass"
+    # INJECT via Sealed Secret — do not set here
+    password: ""

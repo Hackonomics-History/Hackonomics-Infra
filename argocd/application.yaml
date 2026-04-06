@@ -15,10 +15,13 @@ spec:
     path: helm/hackonomics-infra
     helm:
       # Environment-specific overrides layered on top of the chart's values.yaml.
-      # values-k3s-dev.yaml is committed without real secrets — it only overrides
-      # non-sensitive settings (clusterId, allowedHosts, etc.).
-      # Sensitive values (passwords, API keys) are injected via Kubernetes Secrets
-      # referenced from the Helm templates, not stored in this file.
+      # values-k3s-dev.yaml is committed to git and MUST be free of real secrets.
+      # Credential fields (passwords, API keys, Django secret key) are left empty
+      # in values-k3s-dev.yaml and must be supplied via one of:
+      #   a) ArgoCD Vault Plugin annotations on this Application
+      #   b) Pre-created Kubernetes Secrets referenced by Helm chart templates
+      #   c) Sealed Secrets decrypted in-cluster by the sealed-secrets controller
+      # Do NOT add sensitive values directly to valueFiles entries.
       valueFiles:
         - ../../values-k3s-dev.yaml
 
