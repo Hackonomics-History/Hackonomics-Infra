@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kratos.fullname" . }}
+  labels:
+    {{- include "kratos.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "kratos.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kratos.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Restart pods when the kratos config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        # Prometheus scraping — Kratos exposes metrics on the admin port /metrics/prometheus
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.service.adminPort | quote }}
+        prometheus.io/path: "/metrics/prometheus"
+    spec:
+      containers:
+        - name: kratos
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - serve
+            - --config
+            - /etc/config/kratos/kratos.yml
+            - --watch-courier
+          ports:
+            - name: public
+              containerPort: 4433
+              protocol: TCP
+            - name: admin
+              containerPort: 4434
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ include "kratos.fullname" . }}-secrets
+          env:
+            - name: DSN
+              value: {{ .Values.dsn | quote }}
+          volumeMounts:
+            - name: kratos-config
+              mountPath: /etc/config/kratos
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health/alive
+              port: public
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: public
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: kratos-config
+          configMap:
+            name: {{ include "kratos.fullname" . }}-config

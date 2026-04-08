@@ -155,6 +155,71 @@ central-auth:
     maxReplicas: 10
     targetCPUUtilizationPercentage: 70
 
+kratos:
+  replicaCount: 1
+  dsn: "postgres://kratos:CHANGE_ME_kratos_db_password@hackonomics-postgres-go:5432/kratos?sslmode=disable"
+  serve:
+    public:
+      baseUrl: "http://hackonomics-kratos:4433/"
+      cors:
+        allowedOrigins:
+          - "*"
+    admin:
+      baseUrl: "http://hackonomics-kratos:4434/"
+  selfservice:
+    defaultBrowserReturnUrl: "http://localhost:3000/"
+    allowedReturnUrls:
+      - "http://localhost:3000"
+      - "http://localhost:8081"
+    flows:
+      error:
+        uiUrl: "http://localhost:3000/error"
+      settings:
+        uiUrl: "http://localhost:3000/settings"
+      recovery:
+        uiUrl: "http://localhost:3000/recovery"
+      verification:
+        uiUrl: "http://localhost:3000/verification"
+      login:
+        uiUrl: "http://localhost:3000/login"
+      registration:
+        uiUrl: "http://localhost:3000/registration"
+  secrets:
+    cookieSecret: "CHANGE_ME_kratos_cookie_secret_32chars_minimum"
+    cipherSecret: "CHANGE_ME_kratos_cipher_secret_32chars_minimum"
+  oidc:
+    google:
+      clientId: "CHANGE_ME"
+      clientSecret: "CHANGE_ME"
+  serviceMonitor:
+    enabled: true
+    interval: "30s"
+    scrapeTimeout: "10s"
+    additionalLabels:
+      release: hackonomics
+
+promtail:
+  loki:
+    url: "http://loki:3100/loki/api/v1/push"
+    tenantId: "hackonomics"
+
+# ── Traefik IngressRoute values ───────────────────────────────────────────────
+# Service names derive from the release name prefix (e.g. "hackonomics-kratos").
+hydra:
+  service:
+    publicPort: 4444
+    adminPort: 4445
+
+djangoServicePort: 8000
+
+traefik:
+  serviceMonitor:
+    enabled: true
+    interval: "30s"
+    scrapeTimeout: "10s"
+    additionalLabels:
+      release: hackonomics
+
 hackonomics-app:
   web:
     image:

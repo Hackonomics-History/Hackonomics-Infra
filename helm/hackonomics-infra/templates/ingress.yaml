@@ -1,0 +1,169 @@
+# Traefik IngressRoute CRDs — routes external traffic to Kratos, Hydra, and Django.
+#
+# Routing table:
+#   /.well-known/ory/webauthn.js  → Kratos public  (4433)
+#   /kratos/public/*              → Kratos public  (4433)  — browser SPA flows
+#   /kratos/admin/*               → Kratos admin   (4434)  — internal only (stripped)
+#   /hydra/*                      → Hydra public   (4444)
+#   /hydra/admin/*                → Hydra admin    (4445)  — internal only (stripped)
+#   /api/*                        → Django web     (8000)
+#   /                             → Django web     (8000)  — catch-all
+
+---
+# ── Kratos public flows (browser SPA, OIDC callbacks) ──────────────────────────
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-kratos-public
+  labels:
+    helm.sh/chart: hackonomics-infra-{{ .Chart.Version }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: PathPrefix(`/kratos/public`)
+      kind: Rule
+      middlewares:
+        - name: {{ .Release.Name }}-strip-kratos-prefix
+      services:
+        - name: {{ .Release.Name }}-kratos
+          port: {{ .Values.kratos.service.publicPort }}
+    - match: Path(`/.well-known/ory/webauthn.js`)
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}-kratos
+          port: {{ .Values.kratos.service.publicPort }}
+
+---
+# ── Kratos admin (cluster-internal only — no external exposure) ────────────────
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-kratos-admin
+  labels:
+    helm.sh/chart: hackonomics-infra-{{ .Chart.Version }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  entryPoints:
+    - internal   # bound to cluster-internal load-balancer only
+  routes:
+    - match: PathPrefix(`/kratos/admin`)
+      kind: Rule
+      middlewares:
+        - name: {{ .Release.Name }}-strip-kratos-admin-prefix
+      services:
+        - name: {{ .Release.Name }}-kratos
+          port: {{ .Values.kratos.service.adminPort }}
+
+---
+# ── Hydra public (OAuth2/OIDC token + authorize endpoints) ────────────────────
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-hydra-public
+  labels:
+    helm.sh/chart: hackonomics-infra-{{ .Chart.Version }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: PathPrefix(`/hydra`)
+      kind: Rule
+      middlewares:
+        - name: {{ .Release.Name }}-strip-hydra-prefix
+      services:
+        - name: {{ .Release.Name }}-hydra
+          port: {{ .Values.hydra.service.publicPort }}
+
+---
+# ── Hydra admin (cluster-internal only) ───────────────────────────────────────
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-hydra-admin
+  labels:
+    helm.sh/chart: hackonomics-infra-{{ .Chart.Version }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  entryPoints:
+    - internal
+  routes:
+    - match: PathPrefix(`/hydra/admin`)
+      kind: Rule
+      middlewares:
+        - name: {{ .Release.Name }}-strip-hydra-admin-prefix
+      services:
+        - name: {{ .Release.Name }}-hydra
+          port: {{ .Values.hydra.service.adminPort }}
+
+---
+# ── Django web (catch-all for /api/* and /) ────────────────────────────────────
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-django
+  labels:
+    helm.sh/chart: hackonomics-infra-{{ .Chart.Version }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: PathPrefix(`/`)
+      kind: Rule
+      priority: 1
+      services:
+        - name: {{ .Release.Name }}-hackonomics-app
+          port: {{ .Values.djangoServicePort }}
+
+---
+# ── Strip-prefix middlewares ───────────────────────────────────────────────────
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Release.Name }}-strip-kratos-prefix
+spec:
+  stripPrefix:
+    prefixes:
+      - /kratos/public
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Release.Name }}-strip-kratos-admin-prefix
+spec:
+  stripPrefix:
+    prefixes:
+      - /kratos/admin
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Release.Name }}-strip-hydra-prefix
+spec:
+  stripPrefix:
+    prefixes:
+      - /hydra
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Release.Name }}-strip-hydra-admin-prefix
+spec:
+  stripPrefix:
+    prefixes:
+      - /hydra/admin

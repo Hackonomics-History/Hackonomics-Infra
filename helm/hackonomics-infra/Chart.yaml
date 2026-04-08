@@ -27,3 +27,9 @@ dependencies:
   - name: hackonomics-app
     version: 0.1.0
     repository: "file://charts/hackonomics-app"
+  - name: kratos
+    version: 0.1.0
+    repository: "file://charts/kratos"
+  - name: promtail
+    version: 0.1.0
+    repository: "file://charts/promtail"

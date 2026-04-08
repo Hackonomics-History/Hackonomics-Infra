@@ -1,0 +1,129 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kratos.fullname" . }}-config
+  labels:
+    {{- include "kratos.labels" . | nindent 4 }}
+data:
+  kratos.yml: |
+    version: v0.13.0
+
+    dsn: {{ .Values.dsn | quote }}
+
+    database:
+      max_open_connections: {{ .Values.database.maxOpenConnections }}
+      max_idle_connections: {{ .Values.database.maxIdleConnections }}
+      max_connection_lifetime: {{ .Values.database.maxConnectionLifetime }}
+
+    serve:
+      public:
+        base_url: {{ .Values.serve.public.baseUrl | quote }}
+        cors:
+          enabled: true
+          allowed_origins:
+            {{- range .Values.serve.public.cors.allowedOrigins }}
+            - {{ . | quote }}
+            {{- end }}
+          allowed_methods:
+            - POST
+            - GET
+            - PUT
+            - PATCH
+            - DELETE
+          allowed_headers:
+            - Authorization
+            - Content-Type
+          exposed_headers:
+            - Content-Type
+      admin:
+        base_url: {{ .Values.serve.admin.baseUrl | quote }}
+
+    selfservice:
+      default_browser_return_url: {{ .Values.selfservice.defaultBrowserReturnUrl | quote }}
+      allowed_return_urls:
+        {{- range .Values.selfservice.allowedReturnUrls }}
+        - {{ . | quote }}
+        {{- end }}
+      methods:
+        password:
+          enabled: true
+          config:
+            min_password_length: 8
+            identifier_similarity_check_enabled: true
+        oidc:
+          enabled: true
+          config:
+            providers:
+              - id: google
+                provider: google
+                client_id: changeme
+                client_secret: changeme
+                mapper_url: file:///etc/config/kratos/google.mapper.jsonnet
+                scope:
+                  - email
+                  - profile
+        profile:
+          enabled: true
+        link:
+          enabled: true
+      flows:
+        error:
+          ui_url: {{ .Values.selfservice.flows.error.uiUrl | quote }}
+        settings:
+          ui_url: {{ .Values.selfservice.flows.settings.uiUrl | quote }}
+          privileged_session_max_age: 15m
+        recovery:
+          enabled: true
+          ui_url: {{ .Values.selfservice.flows.recovery.uiUrl | quote }}
+        verification:
+          enabled: true
+          ui_url: {{ .Values.selfservice.flows.verification.uiUrl | quote }}
+          after:
+            default_browser_return_url: {{ .Values.selfservice.defaultBrowserReturnUrl | quote }}
+        logout:
+          after:
+            default_browser_return_url: {{ .Values.selfservice.flows.login.uiUrl | quote }}
+        login:
+          ui_url: {{ .Values.selfservice.flows.login.uiUrl | quote }}
+          lifespan: 10m
+        registration:
+          lifespan: 10m
+          ui_url: {{ .Values.selfservice.flows.registration.uiUrl | quote }}
+          after:
+            oidc:
+              hooks:
+                - hook: session
+
+    session:
+      lifespan: 24h
+      cookie:
+        persistent: false
+
+    log:
+      level: info
+      format: json
+      leak_sensitive_values: false
+
+    secrets:
+      cookie:
+        - ${KRATOS_COOKIE_SECRET}
+      cipher:
+        - ${KRATOS_CIPHER_SECRET}
+
+    ciphers:
+      algorithm: xchacha20-poly1305
+
+    hashers:
+      algorithm: bcrypt
+      bcrypt:
+        cost: 12
+
+    identity:
+      default_schema_id: person
+      schemas:
+        - id: person
+          url: file:///etc/config/kratos/identity.schema.json
+
+    courier:
+      smtp:
+        connection_uri: {{ .Values.courier.smtp.connectionUri | quote }}

@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "promtail.fullname" . }}-config
+  labels:
+    {{- include "promtail.labels" . | nindent 4 }}
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: {{ .Values.httpPort }}
+      grpc_listen_port: 0
+
+    positions:
+      filename: /run/promtail/positions.yaml
+
+    clients:
+      - url: {{ .Values.loki.url | quote }}
+        tenant_id: {{ .Values.loki.tenantId | quote }}
+
+    scrape_configs:
+
+      # ── Kubernetes pod logs (/var/log/pods/**/*.log) ─────────────────────────
+      # Discovers all pods and routes them through a JSON pipeline stage so that
+      # structured log fields (level, event, request_id, etc.) become Loki labels.
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        pipeline_stages:
+          # 1. Try to parse the line as JSON. Lines that are not valid JSON pass through.
+          - json:
+              expressions:
+                level: level
+                event: event
+                request_id: request_id
+                # Go services (slog) emit "service"; Django services emit "service_name".
+                # Both are extracted so either convention produces the service_name label.
+                service: service
+                service_name: service_name
+                ts: ts
+          # 1b. Normalise: if service_name is empty, fall back to the value in service.
+          - template:
+              source: service_name
+              template: '{{ "{{" }} if .service_name {{ "}}" }}{{ "{{" }} .service_name {{ "}}" }}{{ "{{" }} else {{ "}}" }}{{ "{{" }} .service {{ "}}" }}{{ "{{" }} end {{ "}}" }}'
+          # 2. Promote parsed fields to labels for efficient querying in Grafana/Loki.
+          #    service_name enables cross-service tracing by req_id:
+          #      {service_name=~"central-auth|hackonomics-app"} | json | request_id="<rid>"
+          - labels:
+              level:
+              event:
+              service_name:
+              request_id:
+          # 3. Timestamp from the JSON `ts` field when present; otherwise use
+          #    the file-level timestamp Promtail injects.
+          - timestamp:
+              source: ts
+              format: RFC3339Nano
+              action_on_failure: skip
+          # 4. Multiline detection: Go panic traces that span multiple lines are
+          #    stitched into a single log entry by anchoring on "goroutine N [".
+          - multiline:
+              firstline: '^\d{4}-\d{2}-\d{2}|^goroutine \d+ \['
+              max_wait_time: 3s
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            target_label: app
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+          # Drop log entries from the promtail pod itself to avoid infinite loops.
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            action: drop
+            regex: promtail
+          # Path to the log file on the node.
+          - source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
+            target_label: __path__
+            separator: /
+            replacement: /var/log/pods/*$1/*.log
+
+      # ── Kafka topic: user-activities ─────────────────────────────────────────
+      # Reads business events published by Django's outbox_to_kafka consumer and
+      # routes them through the same JSON pipeline as pod logs so that Kafka-sourced
+      # news events are queryable with the same labels as standard pod logs.
+      - job_name: kafka-user-activities
+        kafka:
+          brokers: [{{ .Values.kafka.brokers | quote }}]
+          topics: [user-activities]
+          group_id: promtail-user-activities
+          labels:
+            job: kafka-user-activities
+            source: kafka
+        pipeline_stages:
+          # 1. Parse the JSON message published by outbox_to_kafka.
+          - json:
+              expressions:
+                level: level
+                event: event_type
+                request_id: request_id
+                service_name: service_name
+                service: service
+                ts: occurred_at
+          # 1b. Normalise: fall back to "service" if "service_name" is absent.
+          - template:
+              source: service_name
+              template: '{{ "{{" }} if .service_name {{ "}}" }}{{ "{{" }} .service_name {{ "}}" }}{{ "{{" }} else {{ "}}" }}{{ "{{" }} .service {{ "}}" }}{{ "{{" }} end {{ "}}" }}'
+          # 2. Promote parsed fields as primary index labels.
+          - labels:
+              level:
+              event:
+              service_name:
+              request_id:
+          # 3. Use the event's occurred_at as the log timestamp.
+          - timestamp:
+              source: ts
+              format: RFC3339Nano
+              action_on_failure: skip

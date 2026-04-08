@@ -1,0 +1,18 @@
+# ConfigMap that ships the Hackonomics pipeline Grafana dashboard.
+# The Grafana sidecar (kiwigrid/k8s-sidecar) picks up any ConfigMap in the
+# release namespace labelled `grafana_dashboard: "1"` and auto-imports it.
+# Requires Grafana to be deployed with the dashboard sidecar enabled:
+#   grafana.sidecar.dashboards.enabled = true
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-grafana-pipeline-dashboard
+  labels:
+    helm.sh/chart: hackonomics-infra-{{ .Chart.Version }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    # Label consumed by the Grafana sidecar to trigger dashboard auto-import.
+    grafana_dashboard: "1"
+data:
+  pipeline.json: |
+{{ .Files.Get "dashboards/pipeline.json" | indent 4 }}

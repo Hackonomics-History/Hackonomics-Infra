@@ -1,0 +1,29 @@
+{{- if .Values.traefik.serviceMonitor.enabled }}
+# ServiceMonitor for Traefik — adds Traefik ingress metrics (request counts,
+# latency, active connections) to the existing Prometheus scraping job.
+# Requires Prometheus Operator CRDs to be installed (traefik.io/v1alpha1).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-traefik
+  labels:
+    helm.sh/chart: hackonomics-infra-{{ .Chart.Version }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{- if .Values.traefik.serviceMonitor.additionalLabels }}
+    {{- toYaml .Values.traefik.serviceMonitor.additionalLabels | nindent 4 }}
+    {{- end }}
+spec:
+  # Target the Traefik service deployed by K3S (namespace: kube-system).
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.traefik.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.traefik.serviceMonitor.scrapeTimeout }}
+{{- end }}
