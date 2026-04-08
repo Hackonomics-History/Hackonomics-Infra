@@ -1,0 +1,135 @@
+# Loki Ruler rules — recording + alerting.
+#
+# Deployment model:
+#   Loki ruler must be configured with ruler.storage.type: local and
+#   ruler.storage.local.directory: /loki/rules.  This ConfigMap mounts into
+#   that directory via the Loki StatefulSet / Deployment volumeMount.
+#
+# Rule format: Loki ruler uses the same YAML schema as Prometheus ruler.
+#   expr fields use LogQL metric queries (count_over_time, rate, sum, etc.).
+#
+# Tenant: "hackonomics" — must match promtail's tenant_id and Loki's
+#         auth_enabled / multi-tenancy configuration.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-loki-rules
+  labels:
+    helm.sh/chart: hackonomics-infra-{{ .Chart.Version }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    # Loki Operator / custom sidecar picks up ConfigMaps with this label.
+    loki_rule: "1"
+data:
+  # File path inside the ruler's local directory:
+  #   /loki/rules/hackonomics/hackonomics_pipeline.yaml
+  hackonomics_pipeline.yaml: |
+    groups:
+
+      # ── Login Rate Rules ──────────────────────────────────────────────────────
+      - name: hackonomics_login_rate
+        # Evaluate every minute — matches the "1-min moving average" requirement.
+        interval: 1m
+        rules:
+
+          # Recording rule: store the per-minute login success rate as a metric
+          # so Grafana can query it via the Loki ruler without re-scanning raw logs.
+          - record: hackonomics:login_success_per_min
+            expr: |
+              sum(
+                count_over_time(
+                  {service_name="central-auth"}
+                  | json
+                  | operation="login"
+                  | result="ok"
+                  [1m]
+                )
+              )
+
+          # Alert: fire when the 1-min moving average of successful logins
+          # drops below 5.  A sustained drop below this floor indicates either
+          # a login endpoint regression or a Redis/PG outage affecting auth.
+          - alert: LoginSuccessRateLow
+            expr: |
+              (
+                sum(
+                  count_over_time(
+                    {service_name="central-auth"}
+                    | json
+                    | operation="login"
+                    | result="ok"
+                    [1m]
+                  )
+                ) or vector(0)
+              ) < 5
+            # Require the condition to hold for 1 full minute before firing
+            # so transient dips (deploys, brief network blips) are ignored.
+            for: 1m
+            labels:
+              severity: warning
+              service: central-auth
+              team: platform
+            annotations:
+              summary: "Login success rate below 5/min"
+              description: >-
+                The 1-minute moving average of successful logins has dropped
+                below 5 (current: {{ "{{" }} $value {{ "}}" }}/min).
+                Check the circuit breaker state, Redis health, and Sentry for
+                concurrent error events before escalating.
+              runbook_url: "https://wiki.hackonomics.internal/runbooks/auth-login-rate-low"
+
+      # ── News Pipeline Rules ───────────────────────────────────────────────────
+      - name: hackonomics_news_pipeline
+        interval: 5m
+        rules:
+
+          # Alert: no news saved in the last 30 min during business hours
+          # implies the Gemini fetch task has stalled.
+          - alert: NewsPipelineStalled
+            expr: |
+              count_over_time(
+                {service_name="hackonomics-app"}
+                |= "News updated"
+                [30m]
+              ) == 0
+            for: 5m
+            labels:
+              severity: warning
+              service: hackonomics-app
+              team: platform
+            annotations:
+              summary: "News pipeline appears stalled"
+              description: >-
+                No 'News updated' log events have been observed in the last
+                30 minutes.  The Celery news-fetch task may have crashed or
+                the Gemini API may be unreachable.
+              runbook_url: "https://wiki.hackonomics.internal/runbooks/news-pipeline-stalled"
+
+      # ── Circuit Breaker Rules ─────────────────────────────────────────────────
+      - name: hackonomics_circuit_breaker
+        interval: 1m
+        rules:
+
+          # Alert: circuit breaker has been OPEN for more than 5 minutes,
+          # meaning Redis has been unreachable long enough to worry about
+          # L1 cache staleness and elevated PG query load.
+          - alert: RedisCircuitOpenSustained
+            expr: |
+              count_over_time(
+                {service_name="central-auth"}
+                |= "REDIS_DOWN_FALLBACK_STARTED"
+                [5m]
+              ) > 0
+            for: 5m
+            labels:
+              severity: critical
+              service: central-auth
+              team: platform
+            annotations:
+              summary: "Redis circuit breaker has been OPEN for 5+ min"
+              description: >-
+                The central-auth Redis circuit breaker has remained in the
+                OPEN state for at least 5 minutes.  All blacklist checks are
+                falling back to PostgreSQL.  Investigate Redis pod health
+                and network connectivity before PG query rate becomes critical.
+              runbook_url: "https://wiki.hackonomics.internal/runbooks/redis-circuit-open"

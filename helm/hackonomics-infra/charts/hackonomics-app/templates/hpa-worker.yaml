@@ -1,0 +1,23 @@
+{{- if .Values.hpaWorker.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "hackonomics-app.fullname" . }}-worker
+  labels:
+    {{- include "hackonomics-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "hackonomics-app.fullname" . }}-worker
+  minReplicas: {{ .Values.hpaWorker.minReplicas }}
+  maxReplicas: {{ .Values.hpaWorker.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.hpaWorker.targetCPUUtilizationPercentage }}
+{{- end }}

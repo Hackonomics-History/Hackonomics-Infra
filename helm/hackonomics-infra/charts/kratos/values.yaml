@@ -1,0 +1,79 @@
+replicaCount: 1
+
+image:
+  repository: oryd/kratos
+  tag: "v0.13.0"
+  pullPolicy: IfNotPresent
+
+# DSN for Kratos identity database. In production, override via Sealed Secret.
+# Uses the postgres-go instance by default (same PG server as central-auth).
+dsn: "postgres://kratos:CHANGE_ME_kratos_db_password@hackonomics-postgres-go:5432/kratos?sslmode=require&max_conns=20&max_idle_conns=4"
+
+database:
+  maxOpenConnections: 50
+  maxIdleConnections: 10
+  maxConnectionLifetime: 1h
+
+serve:
+  public:
+    baseUrl: "http://kratos:4433/"
+    cors:
+      allowedOrigins:
+        - "http://localhost:5173"
+        - "http://localhost:3000"
+  admin:
+    baseUrl: "http://kratos:4434/"
+
+selfservice:
+  defaultBrowserReturnUrl: "http://localhost:3000/"
+  allowedReturnUrls:
+    - "http://localhost:3000"
+    - "http://localhost:8081"
+  flows:
+    error:
+      uiUrl: "http://localhost:3000/error"
+    settings:
+      uiUrl: "http://localhost:3000/settings"
+    recovery:
+      uiUrl: "http://localhost:3000/recovery"
+    verification:
+      uiUrl: "http://localhost:3000/verification"
+    login:
+      uiUrl: "http://localhost:3000/login"
+    registration:
+      uiUrl: "http://localhost:3000/registration"
+
+courier:
+  smtp:
+    connectionUri: "smtps://test:test@mailslurper:1025/?skip_ssl_verify=true"
+
+secrets:
+  # REQUIRED — override via Sealed Secret in production
+  cookieSecret: "CHANGE_ME_kratos_cookie_secret_32chars_minimum"
+  cipherSecret: "CHANGE_ME_kratos_cipher_secret_32chars_minimum"
+
+oidc:
+  google:
+    # REQUIRED — override via Sealed Secret in production
+    clientId: "CHANGE_ME"
+    clientSecret: "CHANGE_ME"
+
+service:
+  publicPort: 4433
+  adminPort: 4434
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+serviceMonitor:
+  enabled: true
+  interval: "30s"
+  scrapeTimeout: "10s"
+  # Must match labels on the Prometheus Operator's ServiceMonitor selector.
+  additionalLabels:
+    release: hackonomics

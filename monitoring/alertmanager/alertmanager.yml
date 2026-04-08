@@ -1,0 +1,29 @@
+global:
+  resolve_timeout: 5m
+
+# Default route: send all alerts to the null receiver.
+# Replace 'null' with a real receiver (slack, pagerduty, email) once credentials
+# are available. See: https://prometheus.io/docs/alerting/latest/configuration/
+route:
+  group_by: ['alertname', 'job', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'null'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'null'   # TODO: replace with a paging receiver in production
+      continue: false
+
+receivers:
+  - name: 'null'
+
+inhibit_rules:
+  # Suppress warning-severity alerts when a critical alert for the same
+  # job + alertname is already firing, to reduce noise.
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['alertname', 'job']

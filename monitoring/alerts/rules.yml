@@ -1,0 +1,94 @@
+groups:
+  # ── Kafka health ────────────────────────────────────────────────────────────
+  - name: kafka
+    interval: 30s
+    rules:
+      - alert: KafkaBrokerDown
+        expr: kafka_brokers < 1
+        for: 1m
+        labels:
+          severity: critical
+          job: kafka
+        annotations:
+          summary: "Kafka broker is down"
+          description: "kafka_brokers reported {{ $value }} active brokers (expected ≥ 1)"
+
+      - alert: KafkaConsumerGroupLagHigh
+        expr: kafka_consumergroup_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Consumer group {{ $labels.consumergroup }} lag > 1000"
+          description: >
+            Topic {{ $labels.topic }} partition {{ $labels.partition }}
+            lag is {{ $value }} for group {{ $labels.consumergroup }}
+
+      - alert: KafkaConsumerGroupLagCritical
+        expr: kafka_consumergroup_lag > 10000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Consumer group {{ $labels.consumergroup }} lag is critically high"
+          description: >
+            Topic {{ $labels.topic }} partition {{ $labels.partition }}
+            lag is {{ $value }} for group {{ $labels.consumergroup }}.
+            Dead-letter topic may be filling. Check outbox-worker health.
+
+      - alert: KafkaEventsDropped
+        # central_auth_kafka_events_dropped_total is a counter; alert if it's
+        # increasing, which means the producer channel is perpetually full.
+        expr: rate(central_auth_kafka_events_dropped_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          job: central-auth
+        annotations:
+          summary: "Central-auth Kafka producer is dropping events"
+          description: >
+            access-log events are being dropped because the producer
+            channel is full. rate={{ $value | humanize }}/s
+
+  # ── Service availability ────────────────────────────────────────────────────
+  - name: service_health
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Scrape target {{ $labels.job }} is unreachable"
+          description: >
+            Prometheus cannot reach {{ $labels.instance }} (job={{ $labels.job }})
+            for 2 consecutive minutes. The service may be crashed or unresponsive.
+
+      - alert: DjangoHighErrorRate
+        # django-prometheus: django_http_responses_total_by_status_view_method_total
+        expr: |
+          sum(rate(django_http_responses_total_by_status_view_method_total{status=~"5.."}[5m]))
+          /
+          sum(rate(django_http_responses_total_by_status_view_method_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          job: django
+        annotations:
+          summary: "Django 5xx error rate exceeds 5%"
+          description: "Current rate is {{ $value | humanizePercentage }}"
+
+      - alert: GrpcHighErrorRate
+        # grpc_requests_total is emitted by the Prometheus interceptor in Central-auth
+        expr: |
+          sum(rate(grpc_requests_total{code!~"OK|NOT_FOUND|ALREADY_EXISTS|INVALID_ARGUMENT|UNAUTHENTICATED"}[5m]))
+          /
+          sum(rate(grpc_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          job: central-auth
+        annotations:
+          summary: "gRPC infrastructure error rate exceeds 5%"
+          description: "Current rate is {{ $value | humanizePercentage }}"

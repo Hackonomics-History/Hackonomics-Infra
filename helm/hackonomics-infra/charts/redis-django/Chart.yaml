@@ -1,0 +1,6 @@
+apiVersion: v2
+name: redis-django
+description: Redis instance for the Django (Hackonomics BFF) service
+type: application
+version: 0.1.0
+appVersion: "7"

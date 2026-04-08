@@ -1,0 +1,269 @@
+# Default values for hackonomics-infra umbrella chart.
+# Override per environment with values-k3s-dev.yaml etc.
+
+postgres-go:
+  postgres:
+    database: central_auth
+    user: central_auth
+    # REQUIRED — override in environment-specific values file
+    password: "CHANGE_ME_postgres_go_password"
+  storage:
+    size: 5Gi
+    storageClass: local-path
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    port: 5432
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+postgres-django:
+  postgres:
+    database: hackonomics
+    user: hackonomics
+    # REQUIRED — override in environment-specific values file
+    password: "CHANGE_ME_postgres_django_password"
+  storage:
+    size: 5Gi
+    storageClass: local-path
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    port: 5432
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+redis-go:
+  storage:
+    size: 2Gi
+    storageClass: local-path
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+redis-django:
+  storage:
+    size: 2Gi
+    storageClass: local-path
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+kafka:
+  # REQUIRED — generate with: kafka-storage random-uuid
+  clusterId: "CHANGE_ME_kafka_cluster_id"
+  storage:
+    size: 10Gi
+    storageClass: local-path
+  image:
+    repository: confluentinc/cp-kafka
+    tag: "7.9.0"
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 9092
+    controllerPort: 9093
+    externalPort: 19092
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  topics:
+    - name: access-logs
+      partitions: 3
+      replicationFactor: 1
+    - name: user-activities
+      partitions: 3
+      replicationFactor: 1
+    - name: user-activities.retry-1
+      partitions: 3
+      replicationFactor: 1
+      retentionMs: "86400000"
+    - name: user-activities.retry-2
+      partitions: 3
+      replicationFactor: 1
+      retentionMs: "259200000"
+    - name: user-activities.dlt
+      partitions: 3
+      replicationFactor: 1
+      retentionMs: "604800000"
+
+central-auth:
+  app:
+    image:
+      repository: central-auth
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    # REQUIRED — override in environment-specific values file
+    sentryDsn: "CHANGE_ME_sentry_dsn"
+    serviceApiKey: "CHANGE_ME_service_api_key"
+    rateLimitRequestsPerMin: "60"
+  postgres:
+    host: hackonomics-postgres-go
+    port: "5432"
+    database: central_auth
+    user: central_auth
+    # REQUIRED — override in environment-specific values file
+    password: "CHANGE_ME_postgres_go_password"
+  redis:
+    addr: hackonomics-redis-go:6379
+  kafka:
+    brokers: hackonomics-kafka:9092
+  pgbouncer:
+    poolMode: transaction
+    maxClientConn: 100
+    defaultPoolSize: 20
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+kratos:
+  replicaCount: 1
+  dsn: "postgres://kratos:CHANGE_ME_kratos_db_password@hackonomics-postgres-go:5432/kratos?sslmode=disable"
+  serve:
+    public:
+      baseUrl: "http://hackonomics-kratos:4433/"
+      cors:
+        allowedOrigins:
+          - "*"
+    admin:
+      baseUrl: "http://hackonomics-kratos:4434/"
+  selfservice:
+    defaultBrowserReturnUrl: "http://localhost:3000/"
+    allowedReturnUrls:
+      - "http://localhost:3000"
+      - "http://localhost:8081"
+    flows:
+      error:
+        uiUrl: "http://localhost:3000/error"
+      settings:
+        uiUrl: "http://localhost:3000/settings"
+      recovery:
+        uiUrl: "http://localhost:3000/recovery"
+      verification:
+        uiUrl: "http://localhost:3000/verification"
+      login:
+        uiUrl: "http://localhost:3000/login"
+      registration:
+        uiUrl: "http://localhost:3000/registration"
+  secrets:
+    cookieSecret: "CHANGE_ME_kratos_cookie_secret_32chars_minimum"
+    cipherSecret: "CHANGE_ME_kratos_cipher_secret_32chars_minimum"
+  oidc:
+    google:
+      clientId: "CHANGE_ME"
+      clientSecret: "CHANGE_ME"
+  serviceMonitor:
+    enabled: true
+    interval: "30s"
+    scrapeTimeout: "10s"
+    additionalLabels:
+      release: hackonomics
+
+promtail:
+  loki:
+    url: "http://loki:3100/loki/api/v1/push"
+    tenantId: "hackonomics"
+
+# ── Traefik IngressRoute values ───────────────────────────────────────────────
+# Service names derive from the release name prefix (e.g. "hackonomics-kratos").
+hydra:
+  service:
+    publicPort: 4444
+    adminPort: 4445
+
+djangoServicePort: 8000
+
+traefik:
+  serviceMonitor:
+    enabled: true
+    interval: "30s"
+    scrapeTimeout: "10s"
+    additionalLabels:
+      release: hackonomics
+
+hackonomics-app:
+  web:
+    image:
+      repository: hackonomics-app
+      tag: "latest"
+      pullPolicy: IfNotPresent
+  worker:
+    image:
+      repository: hackonomics-app
+      tag: "latest"
+      pullPolicy: IfNotPresent
+  beat:
+    image:
+      repository: hackonomics-app
+      tag: "latest"
+      pullPolicy: IfNotPresent
+  app:
+    # REQUIRED — override in environment-specific values file
+    sentryDsn: "CHANGE_ME_sentry_dsn"
+    djangoSecretKey: "CHANGE_ME_django_secret_key"
+    allowedHosts: "*"
+    debug: "false"
+  postgres:
+    host: hackonomics-postgres-django
+    port: "5432"
+    database: hackonomics
+    user: hackonomics
+    # REQUIRED — override in environment-specific values file
+    password: "CHANGE_ME_postgres_django_password"
+  redis:
+    url: "redis://hackonomics-redis-django:6379/0"
+  kafka:
+    bootstrapServers: hackonomics-kafka:9092
+  pgbouncer:
+    poolMode: session
+    maxClientConn: 100
+    defaultPoolSize: 10
+  hpaWeb:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  hpaWorker:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 60

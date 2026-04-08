@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "promtail.fullname" . }}
+  labels:
+    {{- include "promtail.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "promtail.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        {{- include "promtail.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "promtail.fullname" . }}
+      tolerations:
+        # Run on control-plane nodes too so we never miss a log source.
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: promtail
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+            - -config.expand-env=true
+          ports:
+            - name: http-metrics
+              containerPort: {{ .Values.httpPort }}
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/promtail
+              readOnly: true
+            - name: pods-logs
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: containers-logs
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: positions
+              mountPath: /run/promtail
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "promtail.fullname" . }}-config
+        - name: pods-logs
+          hostPath:
+            path: /var/log/pods
+        - name: containers-logs
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: positions
+          emptyDir: {}

@@ -1,0 +1,22 @@
+image:
+  repository: grafana/promtail
+  tag: "3.4.2"
+  pullPolicy: IfNotPresent
+
+httpPort: 3101
+
+loki:
+  # Override in environment-specific values with the Loki push URL.
+  url: "http://loki:3100/loki/api/v1/push"
+  tenantId: "hackonomics"
+
+kafka:
+  brokers: "hackonomics-kafka:9092"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi

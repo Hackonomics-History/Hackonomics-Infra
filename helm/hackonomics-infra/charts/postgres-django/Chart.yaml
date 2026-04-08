@@ -1,0 +1,6 @@
+apiVersion: v2
+name: postgres-django
+description: PostgreSQL instance for the Django (Hackonomics BFF) service
+type: application
+version: 0.1.0
+appVersion: "16"

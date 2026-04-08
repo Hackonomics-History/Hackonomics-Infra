@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "central-auth.fullname" . }}
+  labels:
+    {{- include "central-auth.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "central-auth.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.app.httpPort }}
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: {{ .Values.app.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+    - name: metrics
+      port: {{ .Values.app.metricsPort }}
+      targetPort: metrics
+      protocol: TCP

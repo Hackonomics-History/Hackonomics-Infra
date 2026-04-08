@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hackonomics
+  namespace: argocd
+  # Cascade delete: removing this Application from Git removes cluster resources too.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/syjoe02/Hackonomics-Infra.git
+    targetRevision: HEAD
+    path: helm/hackonomics-infra
+    helm:
+      # Environment-specific overrides layered on top of the chart's values.yaml.
+      # values-k3s-dev.yaml is committed to git and MUST be free of real secrets.
+      # Credential fields (passwords, API keys, Django secret key) are left empty
+      # in values-k3s-dev.yaml and must be supplied via one of:
+      #   a) ArgoCD Vault Plugin annotations on this Application
+      #   b) Pre-created Kubernetes Secrets referenced by Helm chart templates
+      #   c) Sealed Secrets decrypted in-cluster by the sealed-secrets controller
+      # Do NOT add sensitive values directly to valueFiles entries.
+      valueFiles:
+        - ../../values-k3s-dev.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hackonomics
+
+  syncPolicy:
+    automated:
+      # Remove resources from the cluster when they are deleted from Git.
+      prune: true
+      # Revert any manual changes made directly to the cluster.
+      selfHeal: true
+    syncOptions:
+      # Create the target namespace if it doesn't exist.
+      - CreateNamespace=true
+      # Use server-side apply to avoid annotation size limits on large resources.
+      - ServerSideApply=true
+      # Respect Helm lifecycle hooks (pre-sync, post-sync jobs).
+      - RespectIgnoreDifferences=true
+
+  # Prevent ArgoCD from overriding the image tags it has just synced.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/image
