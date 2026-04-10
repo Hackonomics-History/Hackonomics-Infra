@@ -21,6 +21,15 @@ postgres-django:
 # and commit the result here (it is not a secret).
 kafka:
   clusterId: "MkU3OEVBNTcwNTJENDM2Qg"
+  listeners:
+    client:
+      protocol: PLAINTEXT
+    controller:
+      protocol: PLAINTEXT
+  advertisedListeners:
+    client:
+      protocol: PLAINTEXT
+      address: hackonomics-kafka
 
 central-auth:
   app:

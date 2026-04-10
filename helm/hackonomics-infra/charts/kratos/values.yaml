@@ -10,9 +10,10 @@ image:
 dsn: "postgres://kratos:CHANGE_ME_kratos_db_password@hackonomics-postgres-go:5432/kratos?sslmode=require&max_conns=20&max_idle_conns=4"
 
 database:
-  maxOpenConnections: 50
-  maxIdleConnections: 10
-  maxConnectionLifetime: 1h
+  pool:
+    max_conns: 50
+    min_conns: 10
+    max_conn_lifetime: 1h
 
 serve:
   public:
@@ -48,15 +49,19 @@ courier:
     connectionUri: "smtps://test:test@mailslurper:1025/?skip_ssl_verify=true"
 
 secrets:
-  # REQUIRED — override via Sealed Secret in production
+  # REQUIRED — override via Sealed Secret or existingSecret in production
   cookieSecret: "CHANGE_ME_kratos_cookie_secret_32chars_minimum"
   cipherSecret: "CHANGE_ME_kratos_cipher_secret_32chars_minimum"
 
 oidc:
   google:
-    # REQUIRED — override via Sealed Secret in production
+    # REQUIRED — override via Sealed Secret or existingSecret in production
     clientId: "CHANGE_ME"
     clientSecret: "CHANGE_ME"
+
+# If set, the chart skips creating its own Secret and deployment references
+# this pre-existing K8s Secret via envFrom. Use with k3s-setup.sh.
+existingSecret: ""
 
 service:
   publicPort: 4433

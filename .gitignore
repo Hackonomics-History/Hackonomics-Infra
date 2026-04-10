@@ -9,6 +9,9 @@ venv/
 # Generated from prometheus.yml.tmpl via scripts/generate-env.sh — contains plaintext credentials
 monitoring/prometheus.yml
 
+# k3s-setup.sh: generated Kratos DB password (stable across re-runs, never commit)
+.k3s-dev-state
+
 # Docker volume data (if bind-mounted locally for debugging)
 prometheus-data/
 grafana-data/

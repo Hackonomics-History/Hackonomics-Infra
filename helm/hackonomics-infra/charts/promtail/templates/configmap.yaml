@@ -120,3 +120,43 @@ data:
               source: ts
               format: RFC3339Nano
               action_on_failure: skip
+
+      # ── Kafka topic: blacklist-sync ───────────────────────────────────────────
+      # Reads BlacklistSyncEvent messages published by Central-auth when an admin
+      # registers or removes a global block. Labels are optimised for security
+      # queries: {event="BLACKLIST_UPDATED", target_type="USER"} | json | ...
+      - job_name: kafka-blacklist-sync
+        kafka:
+          brokers: [{{ .Values.kafka.brokers | quote }}]
+          topics: [blacklist-sync]
+          group_id: promtail-blacklist-sync
+          labels:
+            job: kafka-blacklist-sync
+            source: kafka
+        pipeline_stages:
+          # 1. Parse the BlacklistSyncEvent JSON payload.
+          - json:
+              expressions:
+                event: event_type
+                target_type: target_type
+                target_value: target_value
+                ts: timestamp
+          # 1b. Map event_type → fixed label value BLACKLIST_UPDATED.
+          #     The blacklist-sync topic only carries blacklist events so a fixed
+          #     label makes Loki queries predictable and avoids raw event_type
+          #     strings ("blacklist.sync" / "blacklist.unblock") leaking into labels.
+          - template:
+              source: event
+              template: 'BLACKLIST_UPDATED'
+          # 2. Promote security-relevant fields as primary index labels.
+          #    target_value is intentionally omitted: it contains raw identity values
+          #    (Kratos UUID, JTI, service key) that are high-cardinality and may be
+          #    sensitive. Query via `| json | target_value="<val>"` instead.
+          - labels:
+              event:
+              target_type:
+          # 3. Use the event's RFC3339Nano timestamp field.
+          - timestamp:
+              source: ts
+              format: RFC3339Nano
+              action_on_failure: skip

@@ -36,12 +36,12 @@ spec:
             {{- toYaml .Values.beat.command | nindent 12 }}
           envFrom:
             - secretRef:
-                name: {{ include "hackonomics-app.fullname" . }}
+                name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret }}
           env:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "hackonomics-app.fullname" . }}
+                  name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret }}
                   key: DATABASE_URL_DIRECT
           livenessProbe:
             exec:

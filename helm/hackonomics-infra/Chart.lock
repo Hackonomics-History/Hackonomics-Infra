@@ -20,5 +20,11 @@ dependencies:
 - name: hackonomics-app
   repository: file://charts/hackonomics-app
   version: 0.1.0
-digest: sha256:83ccc4a74291a8117304632ede98a900cc332a73f10093b745adce40ec03543d
-generated: "2026-04-04T11:37:00.340127+09:00"
+- name: kratos
+  repository: file://charts/kratos
+  version: 0.1.0
+- name: promtail
+  repository: file://charts/promtail
+  version: 0.1.0
+digest: sha256:fb0fe9c8a15abdc42745711aa421950ff13098b662b412ddc6535c222d0802ee
+generated: "2026-04-09T21:38:42.934475+09:00"

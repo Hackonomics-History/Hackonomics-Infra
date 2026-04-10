@@ -31,14 +31,14 @@ spec:
             {{- toYaml .Values.worker.command | nindent 12 }}
           envFrom:
             - secretRef:
-                name: {{ include "hackonomics-app.fullname" . }}
+                name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret }}
           env:
             # Kubernetes applies env entries AFTER envFrom, so this key wins.
             # Workers connect directly to postgres-django (no pgBouncer in this pod).
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "hackonomics-app.fullname" . }}
+                  name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret }}
                   key: DATABASE_URL_DIRECT
           livenessProbe:
             exec:

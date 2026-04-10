@@ -37,7 +37,7 @@ spec:
               protocol: TCP
           envFrom:
             - secretRef:
-                name: {{ include "central-auth.fullname" . }}
+                name: {{ default (include "central-auth.fullname" .) .Values.app.existingSecret }}
           readinessProbe:
             httpGet:
               path: /healthz
