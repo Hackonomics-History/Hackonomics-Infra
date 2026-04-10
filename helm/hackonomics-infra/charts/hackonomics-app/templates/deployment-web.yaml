@@ -31,7 +31,7 @@ spec:
               protocol: TCP
           envFrom:
             - secretRef:
-                name: {{ include "hackonomics-app.fullname" . }}
+                name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret }}
           readinessProbe:
             httpGet:
               path: /health/

@@ -10,6 +10,9 @@ app:
   sentryDsn: "CHANGE_ME_sentry_dsn"
   serviceApiKey: "CHANGE_ME_service_api_key"
   rateLimitRequestsPerMin: "60"
+  # If set, the chart skips creating its own Secret and deployments reference
+  # this pre-existing K8s Secret via envFrom. Use with k3s-setup.sh.
+  existingSecret: ""
   resources:
     requests:
       cpu: 100m

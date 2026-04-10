@@ -46,6 +46,9 @@ app:
   djangoSecretKey: "CHANGE_ME_django_secret_key"
   allowedHosts: "*"
   debug: "false"
+  # If set, the chart skips creating its own Secret and deployments reference
+  # this pre-existing K8s Secret via envFrom. Use with k3s-setup.sh.
+  existingSecret: ""
 
 # Points to the postgres-django ClusterIP service produced by the umbrella chart.
 postgres:

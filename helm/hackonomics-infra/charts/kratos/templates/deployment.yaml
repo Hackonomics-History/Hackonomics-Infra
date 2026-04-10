@@ -39,7 +39,7 @@ spec:
               protocol: TCP
           envFrom:
             - secretRef:
-                name: {{ include "kratos.fullname" . }}-secrets
+                name: {{ default (printf "%s-secrets" (include "kratos.fullname" .)) .Values.existingSecret }}
           env:
             - name: DSN
               value: {{ .Values.dsn | quote }}
