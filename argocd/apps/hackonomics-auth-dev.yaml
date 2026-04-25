@@ -1,0 +1,64 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hackonomics-auth
+  namespace: argocd
+  # Cascade delete: removing this Application from Git removes ALL cluster
+  # resources it manages.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Deployed after the infra wave (wave 0) so Postgres + Redis are ready first.
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/syjoe02/Hackonomics-Infra.git
+    targetRevision: dev
+    path: helm/hackonomics-auth
+    helm:
+      # ── Values layering ─────────────────────────────────────────────────────
+      # chart/values.yaml           (defaults)
+      # values-k3s-dev.yaml         (env overrides — co-located, no secrets)
+      #
+      # image.tag is injected IMPERATIVELY by the app CI via `helm upgrade --set`.
+      # ArgoCD must NOT revert this — see ignoreDifferences below.
+      valueFiles:
+        - values-k3s-dev.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hackonomics
+
+  syncPolicy:
+    automated:
+      prune: true
+      # CRITICAL: selfHeal is DISABLED so ArgoCD doesn't fight the CI pipeline
+      # on image.tag. The CI pipeline owns the running image tag; ArgoCD owns
+      # everything else (resource structure, config, replicas baseline).
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 2m
+
+  # Fields mutated out-of-band by the CI pipeline or K8s controllers.
+  # ArgoCD will NOT flag these as out-of-sync.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        # image.tag set by CI via `helm upgrade --set`
+        - /spec/template/spec/containers/0/image
+        - /spec/replicas
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /status

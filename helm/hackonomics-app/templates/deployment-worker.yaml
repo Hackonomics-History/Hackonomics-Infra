@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hackonomics-app.fullname" . }}-worker
+  labels:
+    {{- include "hackonomics-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  {{- if not .Values.hpaWorker.enabled }}
+  replicas: {{ .Values.hpaWorker.minReplicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "hackonomics-app.selectorLabels.worker" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "hackonomics-app.selectorLabels.worker" . | nindent 8 }}
+    spec:
+      containers:
+        # ── Celery worker ────────────────────────────────────────────────────────
+        # No pgBouncer sidecar: Celery tasks are long-running and hold connections
+        # for the task duration. They bypass pgBouncer and connect directly to
+        # postgres-django ClusterIP via DATABASE_URL_DIRECT.
+        - name: worker
+          image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.worker.command | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret }}
+          env:
+            # Kubernetes applies env entries AFTER envFrom, so this key wins.
+            # Workers connect directly to postgres-django (no pgBouncer in this pod).
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret | quote }}
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret | quote }}
+                  key: DB_PASSWORD
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret | quote }}
+                  key: DB_NAME
+            - name: DATABASE_URL
+              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@hackonomics-postgres-django:5432/$(DB_NAME)"
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - config
+                - inspect
+                - ping
+                - --timeout
+                - "10"
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}

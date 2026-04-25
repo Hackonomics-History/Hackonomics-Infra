@@ -1,0 +1,405 @@
+name: Infra Pipeline
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Trigger matrix:
+#   dev push / PR   → validate, lint, plan(dev), provision secrets, ArgoCD sync
+#   main push / PR  → validate, lint, plan(prod)  [no auto-sync — manual gate]
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - "Hackonomics-Infra/**"
+      - ".github/workflows/infra-pipeline.yml"
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - "Hackonomics-Infra/**"
+
+env:
+  TF_VERSION: "1.7.5"
+  HELM_VERSION: "3.14.x"
+  TF_IN_AUTOMATION: "true"    # suppress interactive prompts
+  TF_CLI_ARGS: "-no-color"
+
+defaults:
+  run:
+    working-directory: Hackonomics-Infra
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Job 1: Terraform validate + plan (runs on every push/PR, no cluster needed)
+  # ───────────────────────────────────────────────────────────────────────────
+  terraform-validate:
+    name: Terraform Validate & Plan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      # init with -backend=false so no state backend is required in CI.
+      # Plan output is informational; actual apply runs from a runner with
+      # cluster access (provision-secrets / argocd-sync jobs below).
+      - name: Terraform Init (no backend)
+        run: terraform init -backend=false
+        working-directory: Hackonomics-Infra/terraform
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: Hackonomics-Infra/terraform
+
+      - name: Terraform Plan — dev
+        if: github.ref == 'refs/heads/dev' || github.base_ref == 'dev'
+        run: |
+          terraform plan \
+            -var-file=environments/dev.tfvars \
+            -input=false \
+            -out=tfplan-dev
+        working-directory: Hackonomics-Infra/terraform
+
+      - name: Terraform Plan — prod
+        if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+        run: |
+          terraform plan \
+            -var-file=environments/prod.tfvars \
+            -input=false \
+            -out=tfplan-prod
+        working-directory: Hackonomics-Infra/terraform
+
+      - name: Upload plan artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ github.sha }}
+          path: Hackonomics-Infra/terraform/tfplan-*
+          retention-days: 7
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Job 2: Helm lint (parallel to terraform-validate, no cluster needed)
+  # ───────────────────────────────────────────────────────────────────────────
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Resolve infra chart dependencies
+        run: helm dependency build helm/hackonomics-infra
+
+      - name: Lint hackonomics-infra (dev + prod, strict)
+        run: |
+          helm lint helm/hackonomics-infra \
+            --values helm/hackonomics-infra/values-k3s-dev.yaml \
+            --strict
+          helm lint helm/hackonomics-infra \
+            --values helm/hackonomics-infra/values-prod.yaml \
+            --strict
+
+      - name: Lint hackonomics-app (dev + prod, strict)
+        run: |
+          helm lint helm/hackonomics-app \
+            --values helm/hackonomics-app/values-k3s-dev.yaml \
+            --strict
+          helm lint helm/hackonomics-app \
+            --values helm/hackonomics-app/values-prod.yaml \
+            --strict
+
+      - name: Lint hackonomics-auth (dev + prod, strict)
+        run: |
+          helm lint helm/hackonomics-auth \
+            --values helm/hackonomics-auth/values-k3s-dev.yaml \
+            --strict
+          helm lint helm/hackonomics-auth \
+            --values helm/hackonomics-auth/values-prod.yaml \
+            --strict
+
+      - name: Lint each infra sub-chart
+        run: |
+          for chart in helm/hackonomics-infra/charts/*/; do
+            if [[ -f "${chart}Chart.yaml" ]]; then
+              echo "── linting ${chart}"
+              helm lint "${chart}"
+            fi
+          done
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Job 3: Provision Vault Secrets  (push to dev only, requires cluster access)
+  # ───────────────────────────────────────────────────────────────────────────
+  # This job reconstructs the gitignored .env files from GitHub Secrets
+  # and runs vault-init.sh to write all secrets into the in-cluster Vault KV.
+  # ESO ExternalSecrets then sync Vault KV → K8s Secrets automatically.
+  # Must complete BEFORE ArgoCD attempts to sync the application pods.
+  #
+  # Required GitHub Secrets (Settings → Secrets → Actions):
+  #   KUBECONFIG_B64              — base64-encoded kubeconfig for the dev cluster
+  #   VAULT_ROOT_TOKEN            — Vault dev-mode root token (from .k3s-dev-state)
+  #   CENTRAL_AUTH_SERVICE_KEY    — pre-shared X-Service-Key (≥32 chars)
+  #   GOOGLE_CLIENT_ID            — OAuth2 client ID
+  #   GOOGLE_CLIENT_SECRET        — OAuth2 client secret
+  #   CENTRAL_AUTH_POSTGRES_PASS  — postgres-go password (POSTGRES_PASSWORD)
+  #   KRATOS_COOKIE_SECRET        — 32+ byte Kratos cookie signing secret
+  #   KRATOS_CIPHER_SECRET        — 32+ byte Kratos cipher secret
+  #   DJANGO_SECRET_KEY           — 32+ byte Django secret key
+  #   HACKONOMICS_DB_PASSWORD     — postgres-django password (POSTGRES_PASSWORD)
+  #   GRAFANA_ADMIN_PASSWORD      — Grafana admin password
+  #   METRICS_BASIC_AUTH_USER     — Prometheus scrape basic-auth user
+  #   METRICS_BASIC_AUTH_PASSWORD — Prometheus scrape basic-auth password
+  #
+  # Runner must have kubectl + python3 and kubeconfig access to the k3d cluster.
+  provision-secrets:
+    name: Provision Vault Secrets
+    runs-on: self-hosted
+    needs: [terraform-validate, helm-lint]
+    # Only run on actual pushes to dev (not PRs, not main)
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/dev'
+
+    env:
+      NAMESPACE: hackonomics
+      VAULT_ROOT_TOKEN: ${{ secrets.VAULT_ROOT_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Write kubeconfig from base64-encoded GitHub Secret
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          printf '%s' "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      # Reconstruct gitignored env files from GitHub Secrets.
+      # printf avoids heredoc quoting edge cases with special characters.
+      # Variable names must match the actual keys in each .env.prod file.
+      - name: Write .env.shared
+        env:
+          CENTRAL_AUTH_SERVICE_KEY: ${{ secrets.CENTRAL_AUTH_SERVICE_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          METRICS_BASIC_AUTH_USER: ${{ secrets.METRICS_BASIC_AUTH_USER }}
+          METRICS_BASIC_AUTH_PASSWORD: ${{ secrets.METRICS_BASIC_AUTH_PASSWORD }}
+        run: |
+          printf '%s\n' \
+            "CENTRAL_AUTH_SERVICE_KEY=$CENTRAL_AUTH_SERVICE_KEY" \
+            "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" \
+            "GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET" \
+            "METRICS_BASIC_AUTH_USER=$METRICS_BASIC_AUTH_USER" \
+            "METRICS_BASIC_AUTH_PASSWORD=$METRICS_BASIC_AUTH_PASSWORD" \
+            > "$GITHUB_WORKSPACE/.env.shared"
+        working-directory: ${{ github.workspace }}
+
+      - name: Write Central-auth/.env.prod
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.CENTRAL_AUTH_POSTGRES_PASS }}
+          KRATOS_COOKIE_SECRET: ${{ secrets.KRATOS_COOKIE_SECRET }}
+          KRATOS_CIPHER_SECRET: ${{ secrets.KRATOS_CIPHER_SECRET }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/Central-auth/env"
+          printf '%s\n' \
+            "POSTGRES_HOST=hackonomics-postgres-go" \
+            "POSTGRES_PORT=5432" \
+            "POSTGRES_USER=central_db_test1234" \
+            "POSTGRES_DB=central_auth" \
+            "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+            "KRATOS_COOKIE_SECRET=$KRATOS_COOKIE_SECRET" \
+            "KRATOS_CIPHER_SECRET=$KRATOS_CIPHER_SECRET" \
+            > "$GITHUB_WORKSPACE/Central-auth/env/.env.prod"
+        working-directory: ${{ github.workspace }}
+
+      - name: Write Hackonomics-2026/.env.prod
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.HACKONOMICS_DB_PASSWORD }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/Hackonomics-2026/env"
+          printf '%s\n' \
+            "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+            "DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY" \
+            > "$GITHUB_WORKSPACE/Hackonomics-2026/env/.env.prod"
+        working-directory: ${{ github.workspace }}
+
+      - name: Write Hackonomics-Infra/.env.prod
+        env:
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          METRICS_BASIC_AUTH_USER: ${{ secrets.METRICS_BASIC_AUTH_USER }}
+          METRICS_BASIC_AUTH_PASSWORD: ${{ secrets.METRICS_BASIC_AUTH_PASSWORD }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/Hackonomics-Infra/env"
+          printf '%s\n' \
+            "GRAFANA_ADMIN_USER=admin" \
+            "GRAFANA_ADMIN_PASSWORD=$GRAFANA_ADMIN_PASSWORD" \
+            "METRICS_BASIC_AUTH_USER=$METRICS_BASIC_AUTH_USER" \
+            "METRICS_BASIC_AUTH_PASSWORD=$METRICS_BASIC_AUTH_PASSWORD" \
+            > "$GITHUB_WORKSPACE/Hackonomics-Infra/env/.env.prod"
+        working-directory: ${{ github.workspace }}
+
+      - name: Write secrets to Vault via vault-init.sh
+        run: bash scripts/vault-init.sh
+        working-directory: ${{ github.workspace }}/Hackonomics-Infra
+
+      # Scrub env files from the runner workspace immediately after use.
+      # The runner is self-hosted but defense-in-depth is cheap.
+      - name: Clean up reconstructed env files
+        if: always()
+        run: |
+          rm -f \
+            "$GITHUB_WORKSPACE/.env.shared" \
+            "$GITHUB_WORKSPACE/Central-auth/env/.env.prod" \
+            "$GITHUB_WORKSPACE/Hackonomics-2026/env/.env.prod" \
+            "$GITHUB_WORKSPACE/Hackonomics-Infra/env/.env.prod"
+        working-directory: ${{ github.workspace }}
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Job 4: ArgoCD sync  (push to dev only, after secrets are provisioned)
+  # ───────────────────────────────────────────────────────────────────────────
+  # Triggers ArgoCD to sync the root App-of-Apps, which cascades to all child
+  # Applications (traefik → infra → monitoring, respecting sync-waves).
+  #
+  # Required GitHub Secrets:
+  #   ARGOCD_SERVER  — ArgoCD server hostname (e.g. argocd.dev.local:443)
+  #   ARGOCD_TOKEN   — ArgoCD API token with app sync permissions
+  #
+  # To create an ArgoCD token:
+  #   argocd account generate-token --account <service-account>
+  argocd-sync:
+    name: ArgoCD Sync (dev)
+    runs-on: self-hosted
+    needs: provision-secrets
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/dev'
+
+    steps:
+      - name: Install ArgoCD CLI
+        run: |
+          ARGOCD_VERSION=$(curl -s https://api.github.com/repos/argoproj/argo-cd/releases/latest \
+            | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+          curl -sSL -o /usr/local/bin/argocd \
+            "https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-amd64"
+          chmod +x /usr/local/bin/argocd
+
+      - name: Sync root App-of-Apps
+        run: |
+          argocd app sync hackonomics-root \
+            --server "${{ secrets.ARGOCD_SERVER }}" \
+            --auth-token "${{ secrets.ARGOCD_TOKEN }}" \
+            --grpc-web \
+            --timeout 120
+        # The root sync deploys child Application CRDs; actual workload sync
+        # happens in the waves triggered by each child Application's automated policy.
+
+      - name: Wait for child apps to become Healthy
+        run: |
+          for app in hackonomics-traefik hackonomics-infra hackonomics-monitoring; do
+            echo "==> Waiting for ${app}..."
+            argocd app wait "${app}" \
+              --server "${{ secrets.ARGOCD_SERVER }}" \
+              --auth-token "${{ secrets.ARGOCD_TOKEN }}" \
+              --grpc-web \
+              --health \
+              --timeout 600 || {
+                echo "::warning::${app} did not reach Healthy within timeout"
+                argocd app get "${app}" \
+                  --server "${{ secrets.ARGOCD_SERVER }}" \
+                  --auth-token "${{ secrets.ARGOCD_TOKEN }}" \
+                  --grpc-web || true
+              }
+          done
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Job 4b: Infra Connectivity Probe  (push to dev only, after ArgoCD sync)
+  # ───────────────────────────────────────────────────────────────────────────
+  # Verifies that Postgres, Redis, Kafka, and Kratos are accepting TCP connections
+  # after the infra chart is synced. Uses lightweight busybox pods (Idea A) so
+  # no app images (Django/Go) are required.
+  #
+  # Each probe is a one-shot `kubectl run --rm` pod that runs `nc -zv HOST PORT`
+  # and exits. The `--rm` flag auto-deletes successful pods; the always() cleanup
+  # step deletes any orphaned probe pods that failed mid-run.
+  integration-test:
+    name: Infra Connectivity Probe
+    runs-on: self-hosted
+    needs: argocd-sync
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/dev'
+
+    env:
+      NAMESPACE: hackonomics
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          printf '%s' "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Probe infra service TCP endpoints
+        run: |
+          set -euo pipefail
+          TARGETS=(
+            "hackonomics-postgres-go:5432"
+            "hackonomics-postgres-django:5432"
+            "hackonomics-redis-go:6379"
+            "hackonomics-redis-django:6379"
+            "hackonomics-kafka:9092"
+            "hackonomics-kratos:4433"
+          )
+          for T in "${TARGETS[@]}"; do
+            HOST="${T%:*}"; PORT="${T#*:}"
+            echo "==> Probing ${HOST}:${PORT}"
+            kubectl run "tcp-probe-${PORT}-${{ github.run_id }}" \
+              --namespace="${NAMESPACE}" \
+              --rm -i --restart=Never \
+              --image=busybox:1.36 \
+              --command -- sh -c "nc -zv ${HOST} ${PORT} -w 5"
+          done
+
+      - name: Cleanup orphaned probe pods
+        if: always()
+        run: |
+          kubectl -n "${NAMESPACE}" delete pod \
+            -l "run=tcp-probe" --ignore-not-found=true 2>/dev/null || true
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Job 5 (informational): Production readiness gate for main branch
+  # ───────────────────────────────────────────────────────────────────────────
+  # main branch is the "Golden Release" branch for production-ready manifests.
+  # No automatic ArgoCD sync runs here — a human must review the Terraform plan
+  # artifact from Job 1 and manually trigger the prod apply + sync.
+  #
+  # To promote to prod:
+  #   1. Review tfplan-prod artifact from the terraform-validate job.
+  #   2. On a workstation with prod kubeconfig:
+  #        cd Hackonomics-Infra/terraform
+  #        terraform apply -var-file=environments/prod.tfvars tfplan-prod
+  #   3. Trigger ArgoCD prod sync (point root-app.yaml targetRevision at main):
+  #        argocd app sync hackonomics-root --server <prod-argocd>
+  prod-readiness-check:
+    name: Prod Readiness Gate (main)
+    runs-on: ubuntu-latest
+    needs: [terraform-validate, helm-lint]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Confirm prod gate
+        run: |
+          echo "✓ Terraform plan (prod) and Helm lint passed."
+          echo ""
+          echo "This branch is the Golden Release branch — NO automatic sync."
+          echo "Review the tfplan-prod artifact and apply manually from a workstation"
+          echo "with prod kubeconfig access."

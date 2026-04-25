@@ -1,4 +1,4 @@
-# Traefik IngressRoute CRDs — routes external traffic to Kratos, Hydra, and Django.
+# Traefik IngressRoute CRDs — routes external traffic to Kratos and Hydra.
 #
 # Routing table:
 #   /.well-known/ory/webauthn.js  → Kratos public  (4433)
@@ -6,8 +6,9 @@
 #   /kratos/admin/*               → Kratos admin   (4434)  — internal only (stripped)
 #   /hydra/*                      → Hydra public   (4444)
 #   /hydra/admin/*                → Hydra admin    (4445)  — internal only (stripped)
-#   /api/*                        → Django web     (8000)
-#   /                             → Django web     (8000)  — catch-all
+#
+# Django routes (/api/*, /) are managed by the hackonomics-app chart's
+# templates/ingress.yaml (rendered when ingress.enabled: true in that chart).
 
 ---
 # ── Kratos public flows (browser SPA, OIDC callbacks) ──────────────────────────
@@ -103,28 +104,6 @@ spec:
       services:
         - name: {{ .Release.Name }}-hydra
           port: {{ .Values.hydra.service.adminPort }}
-
----
-# ── Django web (catch-all for /api/* and /) ────────────────────────────────────
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: {{ .Release.Name }}-django
-  labels:
-    helm.sh/chart: hackonomics-infra-{{ .Chart.Version }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
-spec:
-  entryPoints:
-    - web
-    - websecure
-  routes:
-    - match: PathPrefix(`/`)
-      kind: Rule
-      priority: 1
-      services:
-        - name: {{ .Release.Name }}-hackonomics-app
-          port: {{ .Values.djangoServicePort }}
 
 ---
 # ── Strip-prefix middlewares ───────────────────────────────────────────────────

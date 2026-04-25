@@ -1,0 +1,103 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hackonomics-infra
+  namespace: argocd
+  # Cascade delete: removing this Application from Git removes ALL cluster
+  # resources it manages. Keep this finalizer unless you intentionally want
+  # to orphan resources on Application deletion.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Webhook sync: GitHub sends push events to ArgoCD's /api/webhook endpoint.
+    # Register in GitHub → Settings → Webhooks → https://<argocd>/api/webhook
+    # with Content-Type: application/json and the ARGOCD_WEBHOOK_SECRET value.
+    # ArgoCD triggers a hard refresh immediately on push without waiting for the
+    # 3-minute polling cycle.
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/syjoe02/Hackonomics-Infra.git
+    targetRevision: dev
+    path: helm/hackonomics-infra
+    helm:
+      # ── Values layering ───────────────────────────────────────────────────────
+      # chart/values.yaml      (defaults — CHANGE_ME_ placeholders for secrets)
+      # values-k3s-dev.yaml    (env overrides — co-located in chart dir, committed, no secrets)
+      #
+      # SECURITY: values-k3s-dev.yaml is committed to git and MUST remain free
+      # of real secrets. Credential fields (postgres passwords, Django secret
+      # key, Kratos secrets, etc.) are supplied at deploy time via one of:
+      #   a) Pre-created K8s Secrets referenced by `existingSecret` chart values.
+      #      Secrets are provisioned before Helm by setup-secrets.sh, which reads
+      #      from local .env.prod files that are gitignored.
+      #   b) Sealed Secrets (kubeseal) — encrypted SealedSecret objects committed
+      #      to git, decrypted in-cluster by the sealed-secrets controller.
+      #   c) ArgoCD Vault Plugin annotations on this Application (AVP).
+      # Do NOT inline real credential values in valueFiles entries.
+      valueFiles:
+        - values-k3s-dev.yaml
+
+  destination:
+    # In-cluster endpoint — ArgoCD uses its own ServiceAccount kubeconfig.
+    server: https://kubernetes.default.svc
+    # Primary namespace. Sub-charts whose templates carry an explicit
+    # metadata.namespace (e.g. monitoring resources) will deploy cross-namespace
+    # provided ArgoCD's RBAC allows it.
+    namespace: hackonomics
+
+  syncPolicy:
+    automated:
+      # Remove resources from the cluster when they are deleted from Git.
+      prune: true
+      # Revert any out-of-band manual changes made directly to the cluster.
+      selfHeal: true
+      # Do not trigger an automated sync for the first deployment — require a
+      # manual sync so operators can review the diff before the initial rollout.
+      allowEmpty: false
+    syncOptions:
+      # Create the target namespace if it doesn't exist.
+      - CreateNamespace=true
+      # Use server-side apply to avoid annotation-size limits on large resources
+      # (e.g. kube-prometheus-stack CRDs, large ConfigMaps).
+      - ServerSideApply=true
+      # Respect Helm lifecycle hooks (pre-sync Jobs, post-sync Jobs).
+      - RespectIgnoreDifferences=true
+      # Apply resources in dependency order; wait for CRDs before CRs.
+      - ApplyOutOfSyncOnly=true
+    retry:
+      # Retry up to 5 times with exponential back-off if a sync fails
+      # (e.g. transient API server unavailability, webhook timeout).
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+
+  # ── ignoreDifferences ─────────────────────────────────────────────────────────
+  # Fields that ArgoCD should NOT flag as out-of-sync after deployment.
+  # These are populated or mutated in-cluster by controllers, not by Helm.
+  ignoreDifferences:
+    # Image tags updated by the app's own CI pipeline (not by Helm directly).
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/image
+    # StatefulSet: volumeClaimTemplates are immutable after creation; ArgoCD
+    # would otherwise flag them as out-of-sync after the initial deploy.
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/volumeClaimTemplates
+    # Prometheus Operator CRDs: status subresource is managed by the operator.
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+      jsonPointers:
+        - /status
+    # HPA: currentReplicas drifts from spec.minReplicas during operation.
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /status

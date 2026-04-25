@@ -7,13 +7,14 @@ image:
 
 # DSN for Kratos identity database. In production, override via Sealed Secret.
 # Uses the postgres-go instance by default (same PG server as central-auth).
-dsn: "postgres://kratos:CHANGE_ME_kratos_db_password@hackonomics-postgres-go:5432/kratos?sslmode=require&max_conns=20&max_idle_conns=4"
 
 database:
-  pool:
-    max_conns: 50
-    min_conns: 10
-    max_conn_lifetime: 1h
+  # gobuffalo/pop cleanup settings — controls background stale-record pruning.
+  # Connection pool tuning belongs in the DSN URL query params (max_conns, etc.).
+  cleanup:
+    batchSize: 100
+    sleepTables: "1m"
+    olderThan: "720h"
 
 serve:
   public:
@@ -48,20 +49,18 @@ courier:
   smtp:
     connectionUri: "smtps://test:test@mailslurper:1025/?skip_ssl_verify=true"
 
-secrets:
-  # REQUIRED — override via Sealed Secret or existingSecret in production
-  cookieSecret: "CHANGE_ME_kratos_cookie_secret_32chars_minimum"
-  cipherSecret: "CHANGE_ME_kratos_cipher_secret_32chars_minimum"
-
+# secrets and oidc credentials are injected exclusively through K8s Secrets
+# (existingSecret) and expanded in kratos.yml via ${ENV_VAR} substitution.
+# Do NOT set cookieSecret, cipherSecret, or Google client credentials here —
+# they must never appear in committed values files.
+secrets: {}
 oidc:
-  google:
-    # REQUIRED — override via Sealed Secret or existingSecret in production
-    clientId: "CHANGE_ME"
-    clientSecret: "CHANGE_ME"
+  google: {}
 
-# If set, the chart skips creating its own Secret and deployment references
-# this pre-existing K8s Secret via envFrom. Use with k3s-setup.sh.
-existingSecret: ""
+# If set, the chart skips creating its own Secret and the Deployment references
+# this pre-existing K8s Secret via envFrom. Use with setup-infra.sh.
+existingSecret: "hackonomics-auth-env"
+dbSecretName: "hackonomics-auth-env"
 
 service:
   publicPort: 4433

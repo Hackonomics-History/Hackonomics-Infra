@@ -1,0 +1,5 @@
+vaultToken: ""
+vaultAddr: ""   # defaults to http://<release>-vault.<namespace>.svc.cluster.local:8200
+namespace: hackonomics
+releaseName: hackonomics
+refreshInterval: "1h"

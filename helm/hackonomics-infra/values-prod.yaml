@@ -1,0 +1,88 @@
+# Production values for the hackonomics-infra chart (infra only).
+# Applied by ArgoCD infra-app and Terraform prod.tfvars.
+#
+# SECURITY: This file is committed to git and MUST NOT contain real secrets.
+# All credential fields are injected at deploy time via pre-created K8s Secrets.
+#
+# App charts (hackonomics-app, hackonomics-auth) have their own values-prod.yaml
+# files co-located in helm/hackonomics-app/ and helm/hackonomics-auth/.
+
+postgres-go:
+  existingSecret: hackonomics-auth-env
+  storage:
+    size: 20Gi
+    storageClass: standard  # Replace with your prod storage class
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+postgres-django:
+  existingSecret: hackonomics-django-env
+  storage:
+    size: 20Gi
+    storageClass: standard
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+redis-go:
+  existingSecret: hackonomics-infra-env
+
+redis-django:
+  existingSecret: hackonomics-infra-env
+
+kafka:
+  existingSecret: hackonomics-infra-env
+  # clusterId must match the value in environments/prod.tfvars.
+  # Generate once with: kafka-storage random-uuid
+  clusterId: "CHANGE_ME_prod_kafka_cluster_id"
+  advertisedHost: "hackonomics-kafka"
+  storage:
+    size: 50Gi
+    storageClass: standard
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+promtail:
+  loki:
+    url: "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
+    tenantId: "hackonomics"
+
+kratos:
+  replicaCount: 2
+  existingSecret: hackonomics-auth-env
+  dbSecretName: hackonomics-auth-env
+  serve:
+    public:
+      baseUrl: "https://auth.hackonomics.io/"
+    admin:
+      baseUrl: "https://admin.hackonomics.io/"
+  selfservice:
+    defaultBrowserReturnUrl: "https://hackonomics.io/"
+    allowedReturnUrls:
+      - "https://hackonomics.io"
+      - "https://app.hackonomics.io"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+hydra:
+  enabled: false
+  existingSecret: hackonomics-hydra-env

@@ -10,10 +10,14 @@ image:
   tag: "7.9.0"
   pullPolicy: IfNotPresent
 
+# Override to set KAFKA_ADVERTISED_LISTENERS host explicitly.
+# Defaults to the chart fullname (e.g. "hackonomics-kafka") which resolves
+# to the ClusterIP service from within the cluster.
+advertisedHost: ""
+
 service:
   internalPort: 9092
   controllerPort: 9093
-  externalPort: 19092
 
 resources:
   requests:

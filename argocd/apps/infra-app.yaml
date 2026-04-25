@@ -1,0 +1,69 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hackonomics-infra
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Wave 0: deploys shared infra (databases, Kafka, Kratos, Promtail).
+    # central-auth and hackonomics-app are disabled by default via Chart.yaml
+    # condition fields and are enabled by test-app.sh or a separate ArgoCD app.
+    argocd.argoproj.io/sync-wave: "0"
+    # Webhook: push events trigger an immediate sync instead of the 3-minute
+    # polling cycle. Register the ArgoCD webhook in GitHub Settings → Webhooks.
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/syjoe02/Hackonomics-Infra.git
+    targetRevision: dev
+    path: helm/hackonomics-infra
+    helm:
+      # ── Values layering ───────────────────────────────────────────────────────
+      # 1. chart/values.yaml        (defaults, CHANGE_ME_ placeholders for secrets)
+      # 2. ../../values-k3s-dev.yaml (env overrides — committed, no secrets)
+      #
+      # SECURITY: values-k3s-dev.yaml is committed and must remain free of real
+      # secrets. Credentials come from pre-created K8s Secrets (existingSecret).
+      valueFiles:
+        - ../../helm/values-k3s-dev.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hackonomics
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/image
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/volumeClaimTemplates
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+      jsonPointers:
+        - /status
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /status

@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hackonomics-traefik
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Wave -1: Traefik must sync first so IngressRoute CRDs are established
+    # before the infra-app (wave 0) renders IngressRoute resources.
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://traefik.github.io/charts
+      chart: traefik
+      targetRevision: ">=30.0.0 <31.0.0"
+      helm:
+        releaseName: traefik
+        valueFiles:
+          - $values/argocd/values/traefik-k3s-dev.yaml
+
+    # Values reference — resolves $values to this repo at targetRevision: dev.
+    - repoURL: https://github.com/syjoe02/Hackonomics-Infra.git
+      targetRevision: dev
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 3m
+
+  ignoreDifferences:
+    - group: ""
+      kind: Service
+      name: traefik
+      namespace: kube-system
+      jsonPointers:
+        - /status/loadBalancer

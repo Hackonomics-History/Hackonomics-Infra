@@ -1,0 +1,29 @@
+# ServiceMonitor for the hackonomics-app (Django) workload.
+# Prometheus Operator discovers this automatically — no manual prometheus.yml
+# edits needed. Migrated from hackonomics-infra/templates/servicemonitor-apps.yaml.
+#
+# The `release: hackonomics` label (from .Values.appServiceMonitor.additionalLabels)
+# must match the Prometheus Operator's serviceMonitorSelector configured in
+# setup-infra.sh.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-hackonomics-app
+  labels:
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{- if .Values.appServiceMonitor.additionalLabels }}
+    {{- toYaml .Values.appServiceMonitor.additionalLabels | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "hackonomics-app.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  endpoints:
+    - port: http
+      path: {{ .Values.appServiceMonitor.metricsPath }}
+      interval: {{ .Values.appServiceMonitor.interval }}
+      scrapeTimeout: {{ .Values.appServiceMonitor.scrapeTimeout }}

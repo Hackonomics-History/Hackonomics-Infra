@@ -1,7 +1,11 @@
 postgres:
   database: hackonomics
   user: hackonomics
-  password: "CHANGE_ME_postgres_django_password"
+  password: ""
+
+# If set, the chart skips creating its own Secret and the StatefulSet
+# references this pre-existing K8s Secret via envFrom. Use with setup-infra.sh.
+existingSecret: "hackonomics-django-env"
 
 storage:
   size: 5Gi

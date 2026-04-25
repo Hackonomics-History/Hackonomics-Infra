@@ -1,0 +1,33 @@
+# Traefik IngressRoute for the Django app.
+# Migrated from hackonomics-infra/templates/ingress.yaml.
+# The strip-prefix middleware and headers middleware for Kratos/Hydra remain
+# in the infra chart — this template only adds the Django catch-all route.
+#
+# Disabled by default (ingress.enabled: false in values.yaml).
+# Enable in environment-specific values files (values-k3s-dev.yaml, values-prod.yaml).
+
+{{- if .Values.ingress.enabled }}
+---
+# ── Django web (catch-all for /api/* and /) ────────────────────────────────────
+# Lower priority than Kratos/Hydra routes (those have higher priority in the
+# infra IngressRoutes). Priority 1 ensures this is the fallback.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-django
+  labels:
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: PathPrefix(`/`)
+      kind: Rule
+      priority: 1
+      services:
+        - name: {{ include "hackonomics-app.fullname" . }}
+          port: {{ .Values.ingress.servicePort }}
+{{- end }}

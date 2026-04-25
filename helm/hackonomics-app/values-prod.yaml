@@ -1,0 +1,50 @@
+# Production overrides for the hackonomics-app standalone chart.
+# SECURITY: This file is committed to git — MUST NOT contain real secrets.
+# Image tags are injected by CI via --set web.image.tag=sha-XXXXXXXX.
+
+web:
+  image:
+    repository: ghcr.io/hackonomics-history/hackonomics-2026
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 300m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+worker:
+  image:
+    repository: ghcr.io/hackonomics-history/hackonomics-2026
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 400m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+beat:
+  image:
+    repository: ghcr.io/hackonomics-history/hackonomics-2026
+    pullPolicy: IfNotPresent
+
+app:
+  allowedHosts: "hackonomics.io,app.hackonomics.io"
+  sentryDsn: ""
+  # Pre-created by infra CI via setup-secrets.sh
+  existingSecret: hackonomics-django-env
+
+hpaWeb:
+  minReplicas: 3
+  maxReplicas: 20
+
+hpaWorker:
+  minReplicas: 2
+  maxReplicas: 10
+
+ingress:
+  enabled: true
+  servicePort: 8000

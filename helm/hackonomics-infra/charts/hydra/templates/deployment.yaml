@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hydra.fullname" . }}
+  labels:
+    {{- include "hydra.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "hydra.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "hydra.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Restart pods when the Hydra config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      initContainers:
+        {{- if .Values.autoMigrate }}
+        # Run `hydra migrate sql` before starting the server so the database
+        # schema is always up-to-date on pod startup. The init container exits
+        # with code 0 on success; a non-zero exit blocks the main container.
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - migrate
+            - sql
+            - --yes
+            - --config
+            - /etc/config/hydra/hydra.yml
+          envFrom:
+            - secretRef:
+                name: {{ default (printf "%s-secrets" (include "hydra.fullname" .)) .Values.existingSecret }}
+          volumeMounts:
+            - name: hydra-config
+              mountPath: /etc/config/hydra
+              readOnly: true
+        {{- end }}
+      containers:
+        - name: hydra
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - serve
+            - all
+            - --config
+            - /etc/config/hydra/hydra.yml
+          ports:
+            - name: public
+              containerPort: {{ .Values.serve.public.port }}
+              protocol: TCP
+            - name: admin
+              containerPort: {{ .Values.serve.admin.port }}
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ default (printf "%s-secrets" (include "hydra.fullname" .)) .Values.existingSecret }}
+          volumeMounts:
+            - name: hydra-config
+              mountPath: /etc/config/hydra
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health/alive
+              port: admin
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: admin
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: hydra-config
+          configMap:
+            name: {{ include "hydra.fullname" . }}-config

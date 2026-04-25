@@ -1,0 +1,61 @@
+replicaCount: 1
+
+image:
+  repository: oryd/hydra
+  tag: "v2.2.0"
+  pullPolicy: IfNotPresent
+
+# DSN for Hydra's OAuth2 database.
+# Uses the postgres-go instance (same server as Kratos, separate DB).
+# REQUIRED — override with a real password via Sealed Secret or ArgoCD Vault Plugin.
+dsn: "postgres://hydra:CHANGE_ME_hydra_db_password@hackonomics-postgres-go:5432/hydra?sslmode=disable&max_conns=10&max_idle_conns=2"
+
+serve:
+  public:
+    # External-facing OAuth2 endpoints (token, authorize, etc.)
+    baseUrl: "http://hackonomics-hydra:4444/"
+    port: 4444
+    corsEnabled: true
+    corsAllowedOrigins:
+      - "http://localhost:3000"
+      - "http://localhost:5173"
+  admin:
+    # Internal management endpoints (clients, jwks, etc.) — never expose externally.
+    baseUrl: "http://hackonomics-hydra:4445/"
+    port: 4445
+
+urls:
+  # Issuer URL embedded in JWT/OIDC tokens. Must match the public base URL.
+  selfIssuer: "http://hackonomics-hydra:4444/"
+  # Kratos-hosted UI pages called by Hydra's consent/login flow.
+  consent: "http://hackonomics-kratos:4433/consent"
+  login: "http://hackonomics-kratos:4433/login"
+  logout: "http://hackonomics-kratos:4433/logout"
+  # Post-logout redirect target.
+  postLogoutRedirect: "http://localhost:3000/"
+
+# secrets.system is a 32+ byte signing key for HMAC tokens.
+# REQUIRED — inject via K8s Secret; never set here.
+# The existingSecret below must contain key SECRETS_SYSTEM.
+secrets: {}
+
+# If set, the Deployment uses envFrom to load SECRETS_SYSTEM and DSN
+# (and any other overrides) from this pre-created K8s Secret instead of
+# creating its own.
+existingSecret: ""
+
+service:
+  publicPort: 4444
+  adminPort: 4445
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Database migration is run as an init container before the Hydra server starts.
+# Set to false only if you manage migrations externally.
+autoMigrate: true

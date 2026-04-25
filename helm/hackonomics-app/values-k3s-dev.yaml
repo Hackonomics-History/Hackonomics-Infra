@@ -1,0 +1,27 @@
+# K3s development overrides for the hackonomics-app standalone chart.
+# SECURITY: This file is committed to git — MUST NOT contain real secrets.
+# Image tags are injected by CI via --set web.image.tag=sha-XXXXXXXX.
+
+web:
+  image:
+    repository: ghcr.io/hackonomics-history/hackonomics-2026
+    pullPolicy: IfNotPresent
+worker:
+  image:
+    repository: ghcr.io/hackonomics-history/hackonomics-2026
+    pullPolicy: IfNotPresent
+beat:
+  image:
+    repository: ghcr.io/hackonomics-history/hackonomics-2026
+    pullPolicy: IfNotPresent
+
+app:
+  allowedHosts: "hackonomics.dev.local"
+  sentryDsn: "https://dev@sentry.example.com/2"
+  # Pre-created by Hackonomics-Infra CI via setup-secrets.sh from
+  # .env.shared + Hackonomics-2026/env/.env.prod
+  existingSecret: hackonomics-django-env
+
+ingress:
+  enabled: true
+  servicePort: 8000

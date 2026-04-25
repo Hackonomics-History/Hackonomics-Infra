@@ -13,27 +13,22 @@ data:
   CLUSTER_ID: {{ required "clusterId is required — generate with: kafka-storage random-uuid" .Values.clusterId | quote }}
 
   # Listeners:
-  #   INTERNAL  — used by in-cluster clients (services in the same namespace)
-  #   EXTERNAL  — exposed via NodePort for out-of-cluster access
+  #   PLAINTEXT  — used by in-cluster clients (services in the same namespace)
   #   CONTROLLER — KRaft raft protocol between controller nodes
-  KAFKA_LISTENERS: {{ printf "INTERNAL://0.0.0.0:%d,EXTERNAL://0.0.0.0:%d,CONTROLLER://0.0.0.0:%d"
-    (int .Values.service.internalPort)
-    (int .Values.service.externalPort)
-    (int .Values.service.controllerPort) | quote }}
+  #
+  # EXTERNAL listener removed — not needed in a single-node k3d dev cluster.
+  # Advertised address is configurable via .Values.advertisedHost (defaults to
+  # the chart fullname which resolves to the ClusterIP service DNS name).
+  KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
 
-  KAFKA_ADVERTISED_LISTENERS: {{ printf "INTERNAL://%s:%d,EXTERNAL://localhost:%d"
-    (include "kafka.fullname" .)
-    (int .Values.service.internalPort)
-    (int .Values.service.externalPort) | quote }}
+  KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://{{ .Values.advertisedHost | default (include "kafka.fullname" .) }}:{{ .Values.service.internalPort }}"
 
-  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
-  KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+  KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
   KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
 
   # Single-node KRaft quorum — pod-0 is always the controller.
-  KAFKA_CONTROLLER_QUORUM_VOTERS: {{ printf "1@%s:%d"
-    (include "kafka.pod0DNS" .)
-    (int .Values.service.controllerPort) | quote }}
+  KAFKA_CONTROLLER_QUORUM_VOTERS: {{ printf "1@%s:%d" (include "kafka.pod0DNS" .) (int .Values.service.controllerPort) | quote }}
 
   KAFKA_LOG_DIRS: "/var/lib/kafka/data"
   KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"

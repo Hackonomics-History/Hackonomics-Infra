@@ -1,0 +1,35 @@
+# Public service: OAuth2 authorize/token/userinfo endpoints.
+# Exposed through Traefik IngressRoute in the parent umbrella chart templates.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hydra.fullname" . }}-public
+  labels:
+    {{- include "hydra.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "hydra.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: public
+      port: {{ .Values.service.publicPort }}
+      targetPort: public
+      protocol: TCP
+---
+# Admin service: OAuth2 client management, JWKS rotation.
+# Should NEVER be exposed externally. Only accessible within the cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hydra.fullname" . }}-admin
+  labels:
+    {{- include "hydra.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "hydra.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: admin
+      port: {{ .Values.service.adminPort }}
+      targetPort: admin
+      protocol: TCP

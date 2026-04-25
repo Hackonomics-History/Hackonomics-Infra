@@ -25,7 +25,7 @@ spec:
               protocol: TCP
           envFrom:
             - secretRef:
-                name: {{ include "postgres-django.fullname" . }}
+                name: {{ default (include "postgres-django.fullname" .) .Values.existingSecret }}
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
@@ -33,27 +33,31 @@ spec:
           livenessProbe:
             exec:
               command:
-                - pg_isready
-                - -U
-                - {{ .Values.postgres.user }}
-                - -d
-                - {{ .Values.postgres.database }}
+                - /bin/sh
+                - -c
+                - "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 6
           readinessProbe:
             exec:
               command:
-                - pg_isready
-                - -U
-                - {{ .Values.postgres.user }}
-                - -d
-                - {{ .Values.postgres.database }}
+                - /bin/sh
+                - -c
+                - "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
             initialDelaySeconds: 5
             periodSeconds: 5
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: {{ include "postgres-django.fullname" . }}-data
+
+  # Persistent volume claim template for PostgreSQL data storage (PVC in StatefulSet)
+  volumeClaimTemplates:
+      - metadata:
+          name: data
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: {{ .Values.storage.storageClass | quote }}
+          resources:
+            requests:
+              storage: {{ .Values.storage.size | quote }}

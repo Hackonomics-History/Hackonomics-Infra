@@ -14,17 +14,14 @@ dependencies:
 - name: kafka
   repository: file://charts/kafka
   version: 0.1.0
-- name: central-auth
-  repository: file://charts/central-auth
-  version: 0.1.0
-- name: hackonomics-app
-  repository: file://charts/hackonomics-app
-  version: 0.1.0
 - name: kratos
   repository: file://charts/kratos
   version: 0.1.0
 - name: promtail
   repository: file://charts/promtail
   version: 0.1.0
-digest: sha256:fb0fe9c8a15abdc42745711aa421950ff13098b662b412ddc6535c222d0802ee
-generated: "2026-04-09T21:38:42.934475+09:00"
+- name: hydra
+  repository: file://charts/hydra
+  version: 0.1.0
+digest: sha256:d439c858663f341f4edc61f88775816c5d876eab3a5e3659dbcaa8081d97651e
+generated: "2026-04-20T15:51:38.940854+09:00"

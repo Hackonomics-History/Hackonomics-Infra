@@ -1,0 +1,5 @@
+apiVersion: v2
+name: vault-eso-config
+description: SecretStore and ExternalSecret resources bridging Vault KV to K8s Secrets
+type: application
+version: 0.1.0

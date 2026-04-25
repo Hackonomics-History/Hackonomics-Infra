@@ -1,0 +1,174 @@
+name: CI – dev
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+
+env:
+  REGISTRY: ghcr.io
+  # Resolved at runtime: ghcr.io/<owner>/...
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 1: Helm Lint
+  # Validates the umbrella chart AND every local sub-chart for syntactic
+  # correctness. --strict promotes warnings to errors so Chart.yaml issues
+  # (missing icon, wrong apiVersion, etc.) surface here rather than at deploy.
+  # ─────────────────────────────────────────────────────────────────────────────
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "3.14.x"
+
+      - name: Resolve local chart dependencies
+        # Builds charts/ tarballs from file:// sub-chart references in Chart.yaml.
+        # Upstream (OCI/HTTP) dependency resolution is skipped in CI because we
+        # only lint local sub-charts; monitoring/traefik charts are managed via
+        # separate ArgoCD Applications that pull from upstream Helm repos at sync time.
+        run: helm dependency build helm/hackonomics-infra
+
+      - name: Lint umbrella chart (strict)
+        run: |
+          helm lint helm/hackonomics-infra \
+            --values helm/values-k3s-dev.yaml \
+            --strict
+
+      - name: Lint each local sub-chart
+        run: |
+          for chart in helm/hackonomics-infra/charts/*/; do
+            if [[ -f "${chart}Chart.yaml" ]]; then
+              echo "── linting ${chart}"
+              helm lint "${chart}"
+            fi
+          done
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 2: Build & Push Custom Images
+  # Only two Dockerfiles live in this repo:
+  #   • loadtest/Dockerfile        → Locust load-test runner
+  #   • monitoring/Dockerfile.envsubst → Alpine + gettext envsubst helper
+  #
+  # Images are pushed only on branch push (not on pull_request) to avoid
+  # publishing untrusted code from forks.
+  #
+  # Replace REGISTRY_URL placeholder by changing the REGISTRY env var or
+  # setting a repository variable named REGISTRY in GitHub Settings → Variables.
+  # ─────────────────────────────────────────────────────────────────────────────
+  image-build:
+    name: Build & Push Custom Images
+    runs-on: ubuntu-latest
+    needs: helm-lint
+    permissions:
+      contents: read
+      packages: write        # required to push to ghcr.io
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push – locust image
+        uses: docker/build-push-action@v5
+        with:
+          context: loadtest
+          file: loadtest/Dockerfile
+          # Push only on direct branch push, not on PRs from forks
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/locust:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/locust:dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push – envsubst image
+        uses: docker/build-push-action@v5
+        with:
+          context: monitoring
+          file: monitoring/Dockerfile.envsubst
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/envsubst:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/envsubst:dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 3: Trivy Security Scan
+  # Two scan passes:
+  #   a) Rendered K8s manifests — catches misconfigurations (missing limits,
+  #      privileged containers, host-path mounts, no readOnlyRootFilesystem, etc.)
+  #   b) Dockerfile configs — scans Dockerfile best-practice compliance.
+  #
+  # SARIF output is uploaded to GitHub's Security tab so findings appear as
+  # code-scanning alerts on the PR. The job also fails fast (exit-code: 1) on
+  # CRITICAL/HIGH findings so they block merge.
+  # ─────────────────────────────────────────────────────────────────────────────
+  trivy-scan:
+    name: Trivy Security Scan
+    runs-on: ubuntu-latest
+    needs: helm-lint
+    permissions:
+      contents: read
+      security-events: write   # required for upload-sarif
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "3.14.x"
+
+      - name: Resolve chart dependencies
+        run: helm dependency build helm/hackonomics-infra
+
+      - name: Render Helm templates to YAML
+        run: |
+          helm template hackonomics helm/hackonomics-infra \
+            --values helm/values-k3s-dev.yaml \
+            --output-dir rendered-manifests
+
+      - name: Trivy – K8s manifests (SARIF)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: config
+          scan-ref: rendered-manifests
+          format: sarif
+          output: trivy-k8s.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Upload K8s scan results to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-k8s.sarif
+          category: helm-manifests
+
+      - name: Trivy – Dockerfiles (table, informational)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: config
+          scan-ref: .
+          format: table
+          severity: CRITICAL,HIGH
+          # Informational only — Dockerfiles in this repo are minimal base images.
+          # Uncomment exit-code: "1" once hardening is complete.
+          # exit-code: "1"
+          skip-dirs: venv,.git,helm/hackonomics-infra/charts

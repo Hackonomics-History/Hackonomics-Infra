@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hackonomics-app.fullname" . }}-web
+  labels:
+    {{- include "hackonomics-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  {{- if not .Values.hpaWeb.enabled }}
+  replicas: {{ .Values.hpaWeb.minReplicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "hackonomics-app.selectorLabels.web" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/pgbouncer: {{ include (print $.Template.BasePath "/configmap-pgbouncer.yaml") . | sha256sum }}
+      labels:
+        {{- include "hackonomics-app.selectorLabels.web" . | nindent 8 }}
+    spec:
+      containers:
+        # ── Gunicorn / Django ────────────────────────────────────────────────────
+        - name: web
+          image: "{{ .Values.web.image.repository }}:{{ .Values.web.image.tag }}"
+          imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.web.port }}
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret }}
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret | quote }}
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret | quote }}
+                  key: DB_PASSWORD
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "hackonomics-app.fullname" .) .Values.app.existingSecret | quote }}
+                  key: DB_NAME
+            - name: DATABASE_URL
+              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@localhost:6432/$(DB_NAME)"
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+
+        # ── pgBouncer sidecar ────────────────────────────────────────────────────
+        # Pool mode: session — Gunicorn workers hold connections across requests.
+        # Transaction mode would break Django's atomic() / ORM transaction management.
+        - name: pgbouncer
+          image: "{{ .Values.pgbouncer.image.repository }}:{{ .Values.pgbouncer.image.tag }}"
+          imagePullPolicy: {{ .Values.pgbouncer.image.pullPolicy }}
+          ports:
+            - name: pgbouncer
+              containerPort: {{ .Values.pgbouncer.listenPort }}
+              protocol: TCP
+          volumeMounts:
+            - name: pgbouncer-config
+              mountPath: /etc/pgbouncer
+              readOnly: true
+          livenessProbe:
+            tcpSocket:
+              port: pgbouncer
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: pgbouncer
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.pgbouncer.resources | nindent 12 }}
+
+      volumes:
+        - name: pgbouncer-config
+          configMap:
+            name: {{ include "hackonomics-app.fullname" . }}-pgbouncer

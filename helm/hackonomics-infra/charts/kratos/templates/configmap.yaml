@@ -11,9 +11,11 @@ data:
     dsn: {{ .Values.dsn | quote }}
 
     database:
-      max_open_connections: {{ .Values.database.maxOpenConnections }}
-      max_idle_connections: {{ .Values.database.maxIdleConnections }}
-      max_connection_lifetime: {{ .Values.database.maxConnectionLifetime }}
+      cleanup:
+        batch_size: {{ .Values.database.cleanup.batchSize | default 100 }}
+        sleep:
+          tables: {{ .Values.database.cleanup.sleepTables | default "1m" }}
+        older_than: {{ .Values.database.cleanup.olderThan | default "720h" }}
 
     serve:
       public:
@@ -56,8 +58,10 @@ data:
             providers:
               - id: google
                 provider: google
-                client_id: changeme
-                client_secret: changeme
+                # Injected at runtime from the K8s Secret via envFrom —
+                # never written to values files or this ConfigMap as plain text.
+                client_id: ${GOOGLE_CLIENT_ID}
+                client_secret: ${GOOGLE_CLIENT_SECRET}
                 mapper_url: file:///etc/config/kratos/google.mapper.jsonnet
                 scope:
                   - email
@@ -106,6 +110,7 @@ data:
 
     secrets:
       cookie:
+        # Injected at runtime from the K8s Secret via envFrom — Kratos expands ${} vars.
         - ${KRATOS_COOKIE_SECRET}
       cipher:
         - ${KRATOS_CIPHER_SECRET}
@@ -127,3 +132,83 @@ data:
     courier:
       smtp:
         connection_uri: {{ .Values.courier.smtp.connectionUri | quote }}
+
+  # ── OIDC mapper: maps Google Claims → Kratos identity traits ───────────────
+  # Sourced from Central-auth/kratos/google.mapper.jsonnet (now consolidated here).
+  google.mapper.jsonnet: |
+    local claims = {
+      email_verified: false,
+    } + std.extVar('claims');
+
+    {
+      identity: {
+        traits: {
+          email: claims.email,
+          [if 'given_name' in claims then 'name']: {
+            first: claims.given_name,
+            [if 'family_name' in claims then 'last']: claims.family_name,
+          },
+        },
+      },
+    }
+
+  # ── Identity schema: defines the shape of a Kratos person identity ──────────
+  # Sourced from Central-auth/kratos/identity.schema.json (now consolidated here).
+  identity.schema.json: |
+    {
+      "$id": "https://schemas.central-auth.local/person.json",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Person",
+      "type": "object",
+      "properties": {
+        "traits": {
+          "type": "object",
+          "properties": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "title": "E-Mail",
+              "ory.sh/kratos": {
+                "credentials": {
+                  "password": {
+                    "identifier": true
+                  },
+                  "webauthn": {
+                    "identifier": true
+                  },
+                  "totp": {
+                    "account_name": true
+                  }
+                },
+                "recovery": {
+                  "via": "email"
+                },
+                "verification": {
+                  "via": "email"
+                }
+              },
+              "maxLength": 320
+            },
+            "name": {
+              "type": "object",
+              "properties": {
+                "first": {
+                  "type": "string",
+                  "title": "First Name",
+                  "maxLength": 256
+                },
+                "last": {
+                  "type": "string",
+                  "title": "Last Name",
+                  "maxLength": 256
+                }
+              }
+            }
+          },
+          "required": [
+            "email"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }

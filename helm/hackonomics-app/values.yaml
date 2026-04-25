@@ -1,0 +1,126 @@
+web:
+  image:
+    repository: hackonomics-app
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  port: 8000
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+worker:
+  image:
+    repository: hackonomics-app
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  command: ["celery", "-A", "config", "worker", "-l", "info"]
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+beat:
+  image:
+    repository: hackonomics-app
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  command:
+    [
+      "celery",
+      "-A",
+      "config",
+      "beat",
+      "-l",
+      "info",
+      "--schedule",
+      "/tmp/celerybeat-schedule",
+    ]
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+app:
+  # REQUIRED — override in environment-specific values file
+  sentryDsn: "CHANGE_ME_sentry_dsn"
+  djangoSecretKey: "CHANGE_ME_django_secret_key"
+  allowedHosts: "*"
+  debug: "false"
+  # If set, the chart skips creating its own Secret and deployments reference
+  # this pre-existing K8s Secret via envFrom. Set in values-k3s-dev.yaml or
+  # values-prod.yaml — never hardcode here.
+  existingSecret: ""
+
+# Points to the postgres-django ClusterIP service produced by the umbrella chart.
+postgres:
+  host: hackonomics-postgres-django
+  port: "5432"
+  database: hackonomics
+  user: hackonomics
+  # REQUIRED — override in environment-specific values file
+  password: ""
+
+redis:
+  url: "redis://hackonomics-redis-django:6379/0"
+
+kafka:
+  bootstrapServers: hackonomics-kafka:9092
+
+pgbouncer:
+  image:
+    repository: edoburu/pgbouncer
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  # session mode: Gunicorn workers hold connections open across requests —
+  # transaction mode would break Django's ORM transaction management.
+  poolMode: session
+  maxClientConn: 100
+  defaultPoolSize: 10
+  listenPort: 6432
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+hpaWeb:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+hpaWorker:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 60
+
+# ── Ingress (Traefik IngressRoute) ─────────────────────────────────────────────
+# Django catch-all route: PathPrefix(`/`) and PathPrefix(`/api/`).
+# Disabled by default; enabled via environment-specific values files.
+ingress:
+  enabled: false
+  servicePort: 8000
+
+# ── ServiceMonitor ─────────────────────────────────────────────────────────────
+# Prometheus Operator scrape config for the Django app (django-prometheus).
+# The `release: hackonomics` label must match the Prometheus Operator's
+# serviceMonitorSelector configured in setup-infra.sh.
+appServiceMonitor:
+  interval: "30s"
+  scrapeTimeout: "10s"
+  metricsPath: /metrics
+  additionalLabels:
+    release: hackonomics

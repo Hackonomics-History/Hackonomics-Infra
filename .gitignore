@@ -6,6 +6,13 @@ __pycache__/
 venv/
 .ruff_cache/
 
+# Terraform — state contains plaintext DB passwords, treat as secrets
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/tfplan-*
+
 # Generated from prometheus.yml.tmpl via scripts/generate-env.sh — contains plaintext credentials
 monitoring/prometheus.yml
 
@@ -17,3 +24,31 @@ prometheus-data/
 grafana-data/
 kafka-data/
 *.db
+
+# Terraform
+.terraform/
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+*.tfvars
+*.tfvars.json
+
+# Ignore override files as they are usually used to override resources locally and so
+# are not checked in
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ignore transient lock info files created by terraform apply
+.terraform.tfstate.lock.info
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc

@@ -25,7 +25,7 @@ spec:
               protocol: TCP
           envFrom:
             - secretRef:
-                name: {{ include "postgres-go.fullname" . }}
+                name: {{ default (include "postgres-go.fullname" .) .Values.existingSecret }}
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
@@ -53,7 +53,14 @@ spec:
             periodSeconds: 5
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: {{ include "postgres-go.fullname" . }}-data
+
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: {{ .Values.storage.storageClass | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.storage.size | quote }}

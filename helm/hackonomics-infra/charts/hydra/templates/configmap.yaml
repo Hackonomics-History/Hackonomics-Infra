@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hydra.fullname" . }}-config
+  labels:
+    {{- include "hydra.labels" . | nindent 4 }}
+data:
+  hydra.yml: |
+    version: v2
+
+    dsn: {{ .Values.dsn | quote }}
+
+    serve:
+      public:
+        base_url: {{ .Values.serve.public.baseUrl | quote }}
+        port: {{ .Values.serve.public.port }}
+        cors:
+          enabled: {{ .Values.serve.public.corsEnabled }}
+          allowed_origins:
+            {{- range .Values.serve.public.corsAllowedOrigins }}
+            - {{ . | quote }}
+            {{- end }}
+          allowed_methods:
+            - POST
+            - GET
+            - PUT
+            - DELETE
+          allowed_headers:
+            - Authorization
+            - Content-Type
+      admin:
+        base_url: {{ .Values.serve.admin.baseUrl | quote }}
+        port: {{ .Values.serve.admin.port }}
+
+    urls:
+      self:
+        issuer: {{ .Values.urls.selfIssuer | quote }}
+      consent: {{ .Values.urls.consent | quote }}
+      login: {{ .Values.urls.login | quote }}
+      logout: {{ .Values.urls.logout | quote }}
+      post_logout_redirect: {{ .Values.urls.postLogoutRedirect | quote }}
+
+    # secrets.system is injected at runtime from the K8s Secret via envFrom.
+    # Hydra reads SECRETS_SYSTEM from the environment and uses it for HMAC signing.
+    secrets:
+      system:
+        - ${SECRETS_SYSTEM}
+
+    log:
+      level: info
+      format: json
+      leak_sensitive_values: false
+
+    oauth2:
+      expose_internal_errors: false
+      # PKCE is required for all public clients (SPAs, mobile apps).
+      pkce:
+        enforced: true
+        enforced_for_public_clients: true
+
+    strategies:
+      access_token: jwt
+      scope: wildcard

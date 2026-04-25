@@ -1,0 +1,22 @@
+# Production overrides for the hackonomics-auth standalone chart.
+# SECURITY: This file is committed to git — MUST NOT contain real secrets.
+# Image tags are injected by CI via --set app.image.tag=sha-XXXXXXXX.
+
+app:
+  image:
+    repository: ghcr.io/syjoe02/central-auth
+    pullPolicy: IfNotPresent
+  sentryDsn: ""
+  # Pre-created by infra CI via setup-secrets.sh
+  existingSecret: hackonomics-auth-env
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+hpa:
+  minReplicas: 3
+  maxReplicas: 15

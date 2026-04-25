@@ -214,7 +214,7 @@ helm upgrade --install vault-eso-config "$VAULT_ESO_CONFIG_CHART" \
   --timeout 2m
 
 echo "    Waiting for ExternalSecrets to sync..."
-for _es in central-auth-env hackonomics-app-env hackonomics-kratos-env hackonomics-infra-env; do
+for _es in hackonomics-auth-env hackonomics-django-env hackonomics-infra-env hackonomics-shared-env; do
   kubectl wait externalsecret/"$_es" \
     --for=condition=Ready --timeout=90s -n "$NAMESPACE" 2>/dev/null || \
   echo "    WARNING: externalsecret/${_es} not Ready yet (may sync on next poll)"
@@ -236,9 +236,9 @@ helm upgrade --install "$RELEASE_NAME" "$CHART_PATH" \
   --set "kratos.dsn=postgres://kratos:${KRATOS_DB_PASS}@${K8S_PG_GO}:5432/kratos?sslmode=disable" \
   \
   `# Tell each chart to skip generating its own Secret — use pre-created ones` \
-  --set "central-auth.app.existingSecret=central-auth-env" \
-  --set "hackonomics-app.app.existingSecret=hackonomics-app-env" \
-  --set "kratos.existingSecret=hackonomics-kratos-env" \
+  --set "central-auth.app.existingSecret=hackonomics-auth-env" \
+  --set "hackonomics-app.app.existingSecret=hackonomics-django-env" \
+  --set "kratos.existingSecret=hackonomics-auth-env" \
   \
   --wait \
   --timeout 10m

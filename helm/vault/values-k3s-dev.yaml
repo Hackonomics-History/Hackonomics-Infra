@@ -1,0 +1,17 @@
+server:
+  dev:
+    enabled: true
+    devRootToken: ""        # injected via --set server.dev.devRootToken at install time
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  dataStorage:
+    enabled: false          # dev mode uses in-memory storage; no PVC needed
+ui:
+  enabled: false
+injector:
+  enabled: false            # ESO bridge used instead of agent injector sidecar

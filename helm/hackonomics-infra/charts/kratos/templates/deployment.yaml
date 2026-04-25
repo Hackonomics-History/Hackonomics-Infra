@@ -41,8 +41,23 @@ spec:
             - secretRef:
                 name: {{ default (printf "%s-secrets" (include "kratos.fullname" .)) .Values.existingSecret }}
           env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dbSecretName | quote }}
+                  key: POSTGRES_PASSWORD
             - name: DSN
-              value: {{ .Values.dsn | quote }}
+              value: "postgres://kratos:$(DB_PASSWORD)@hackonomics-postgres-go:5432/kratos?sslmode=disable"
+            - name: KRATOS_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-secrets" (include "kratos.fullname" .)) .Values.existingSecret }}
+                  key: KRATOS_COOKIE_SECRET
+            - name: KRATOS_CIPHER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-secrets" (include "kratos.fullname" .)) .Values.existingSecret }}
+                  key: KRATOS_CIPHER_SECRET
           volumeMounts:
             - name: kratos-config
               mountPath: /etc/config/kratos

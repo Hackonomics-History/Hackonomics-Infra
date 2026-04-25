@@ -123,41 +123,18 @@ kafka:
       partitions: 3
       replicationFactor: 1
       retentionMs: "604800000"
-
-central-auth:
-  app:
-    image:
-      repository: central-auth
-      tag: "latest"
-      pullPolicy: IfNotPresent
-    # REQUIRED — override in environment-specific values file
-    sentryDsn: "CHANGE_ME_sentry_dsn"
-    serviceApiKey: "CHANGE_ME_service_api_key"
-    rateLimitRequestsPerMin: "60"
-  postgres:
-    host: hackonomics-postgres-go
-    port: "5432"
-    database: central_auth
-    user: central_auth
-    # REQUIRED — override in environment-specific values file
-    password: "CHANGE_ME_postgres_go_password"
-  redis:
-    addr: hackonomics-redis-go:6379
-  kafka:
-    brokers: hackonomics-kafka:9092
-  pgbouncer:
-    poolMode: transaction
-    maxClientConn: 100
-    defaultPoolSize: 20
-  hpa:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 10
-    targetCPUUtilizationPercentage: 70
+    - name: blacklist-sync
+      partitions: 3
+      replicationFactor: 1
 
 kratos:
   replicaCount: 1
   dsn: "postgres://kratos:CHANGE_ME_kratos_db_password@hackonomics-postgres-go:5432/kratos?sslmode=disable"
+  database:
+    cleanup:
+      batchSize: 100
+      sleepTables: "1m"
+      olderThan: "720h"
   serve:
     public:
       baseUrl: "http://hackonomics-kratos:4433/"
@@ -184,13 +161,11 @@ kratos:
         uiUrl: "http://localhost:3000/login"
       registration:
         uiUrl: "http://localhost:3000/registration"
-  secrets:
-    cookieSecret: "CHANGE_ME_kratos_cookie_secret_32chars_minimum"
-    cipherSecret: "CHANGE_ME_kratos_cipher_secret_32chars_minimum"
+  # secrets and OIDC credentials are injected via existingSecret (K8s Secret).
+  # Never set cookieSecret, cipherSecret, or Google client IDs in values files.
+  secrets: {}
   oidc:
-    google:
-      clientId: "CHANGE_ME"
-      clientSecret: "CHANGE_ME"
+    google: {}
   serviceMonitor:
     enabled: true
     interval: "30s"
@@ -203,14 +178,49 @@ promtail:
     url: "http://loki:3100/loki/api/v1/push"
     tenantId: "hackonomics"
 
-# ── Traefik IngressRoute values ───────────────────────────────────────────────
-# Service names derive from the release name prefix (e.g. "hackonomics-kratos").
 hydra:
+  # Disabled by default — enable when the Kratos consent/login flow is wired up.
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: oryd/hydra
+    tag: "v2.2.0"
+    pullPolicy: IfNotPresent
+  # REQUIRED — override with a real password via Sealed Secret or ArgoCD Vault Plugin.
+  dsn: "postgres://hydra:CHANGE_ME_hydra_db_password@hackonomics-postgres-go:5432/hydra?sslmode=disable"
+  serve:
+    public:
+      baseUrl: "http://hackonomics-hydra:4444/"
+      port: 4444
+      corsEnabled: true
+      corsAllowedOrigins:
+        - "http://localhost:3000"
+        - "http://localhost:5173"
+    admin:
+      baseUrl: "http://hackonomics-hydra:4445/"
+      port: 4445
+  urls:
+    selfIssuer: "http://hackonomics-hydra:4444/"
+    consent: "http://hackonomics-kratos:4433/consent"
+    login: "http://hackonomics-kratos:4433/login"
+    logout: "http://hackonomics-kratos:4433/logout"
+    postLogoutRedirect: "http://localhost:3000/"
+  existingSecret: ""
   service:
     publicPort: 4444
     adminPort: 4445
+  autoMigrate: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
 
-djangoServicePort: 8000
+# ── Traefik IngressRoute values ───────────────────────────────────────────────
+# Service names derive from the release name prefix (e.g. "hackonomics-kratos").
+# Django ingress routes are now managed by the hackonomics-app chart.
 
 traefik:
   serviceMonitor:
@@ -220,50 +230,6 @@ traefik:
     additionalLabels:
       release: hackonomics
 
-hackonomics-app:
-  web:
-    image:
-      repository: hackonomics-app
-      tag: "latest"
-      pullPolicy: IfNotPresent
-  worker:
-    image:
-      repository: hackonomics-app
-      tag: "latest"
-      pullPolicy: IfNotPresent
-  beat:
-    image:
-      repository: hackonomics-app
-      tag: "latest"
-      pullPolicy: IfNotPresent
-  app:
-    # REQUIRED — override in environment-specific values file
-    sentryDsn: "CHANGE_ME_sentry_dsn"
-    djangoSecretKey: "CHANGE_ME_django_secret_key"
-    allowedHosts: "*"
-    debug: "false"
-  postgres:
-    host: hackonomics-postgres-django
-    port: "5432"
-    database: hackonomics
-    user: hackonomics
-    # REQUIRED — override in environment-specific values file
-    password: "CHANGE_ME_postgres_django_password"
-  redis:
-    url: "redis://hackonomics-redis-django:6379/0"
-  kafka:
-    bootstrapServers: hackonomics-kafka:9092
-  pgbouncer:
-    poolMode: session
-    maxClientConn: 100
-    defaultPoolSize: 10
-  hpaWeb:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 10
-    targetCPUUtilizationPercentage: 70
-  hpaWorker:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 8
-    targetCPUUtilizationPercentage: 60
+# ── Application ServiceMonitors ────────────────────────────────────────────────
+# ServiceMonitor resources for app workloads are now managed in their respective
+# standalone charts (hackonomics-app and hackonomics-auth).
