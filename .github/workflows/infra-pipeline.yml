@@ -7,19 +7,19 @@ name: Infra Pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 on:
   push:
-    branches: [dev, main]
+    branches: [ dev, main ]
     paths:
       - "Hackonomics-Infra/**"
       - ".github/workflows/infra-pipeline.yml"
   pull_request:
-    branches: [dev, main]
+    branches: [ dev, main ]
     paths:
       - "Hackonomics-Infra/**"
 
 env:
   TF_VERSION: "1.7.5"
-  HELM_VERSION: "3.14.x"
-  TF_IN_AUTOMATION: "true"    # suppress interactive prompts
+  HELM_VERSION: "3.14.4"
+  TF_IN_AUTOMATION: "true" # suppress interactive prompts
   TF_CLI_ARGS: "-no-color"
 
 defaults:
@@ -160,11 +160,10 @@ jobs:
   provision-secrets:
     name: Provision Vault Secrets
     runs-on: self-hosted
-    needs: [terraform-validate, helm-lint]
+    needs: [ terraform-validate, helm-lint ]
     # Only run on actual pushes to dev (not PRs, not main)
     if: >
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/dev'
+      github.event_name == 'push' && github.ref == 'refs/heads/dev'
 
     env:
       NAMESPACE: hackonomics
@@ -278,8 +277,7 @@ jobs:
     runs-on: self-hosted
     needs: provision-secrets
     if: >
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/dev'
+      github.event_name == 'push' && github.ref == 'refs/heads/dev'
 
     steps:
       - name: Install ArgoCD CLI
@@ -333,8 +331,7 @@ jobs:
     runs-on: self-hosted
     needs: argocd-sync
     if: >
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/dev'
+      github.event_name == 'push' && github.ref == 'refs/heads/dev'
 
     env:
       NAMESPACE: hackonomics
@@ -392,7 +389,7 @@ jobs:
   prod-readiness-check:
     name: Prod Readiness Gate (main)
     runs-on: ubuntu-latest
-    needs: [terraform-validate, helm-lint]
+    needs: [ terraform-validate, helm-lint ]
     if: github.ref == 'refs/heads/main'
 
     steps:

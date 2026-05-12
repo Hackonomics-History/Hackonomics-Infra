@@ -31,3 +31,7 @@ dependencies:
     version: 0.1.0
     repository: "file://charts/hydra"
     condition: hydra.enabled
+  - name: qdrant
+    version: 0.1.0
+    repository: "file://charts/qdrant"
+    condition: qdrant.enabled

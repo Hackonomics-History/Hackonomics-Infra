@@ -1,0 +1,63 @@
+app:
+  image:
+    repository: k3d-hackonomics-registry:5001/backend-fastapi
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  httpPort: 8000
+  grpcPort: 50052
+  # REQUIRED in env-specific values — override with real values
+  existingSecret: ""
+  geminiApiKey: "CHANGE_ME_gemini_api_key"
+  internalAiToken: "CHANGE_ME_internal_ai_token"
+  googleClientId: "CHANGE_ME_google_client_id"
+  googleClientSecret: "CHANGE_ME_google_client_secret"
+  googleCalendarRedirectUri: "http://localhost:8000/api/calendar/oauth/callback/"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 3Gi
+
+# Points to postgres-django ClusterIP (release name "hackonomics" prefix).
+postgres:
+  host: hackonomics-postgres-django
+  port: "5432"
+  database: hackonomics
+  user: hackonomics
+  # REQUIRED — override in environment-specific values file
+  password: "CHANGE_ME_postgres_django_password"
+
+redis:
+  url: "redis://hackonomics-redis-django:6379/0"
+
+kafka:
+  bootstrapServers: hackonomics-kafka:9092
+  newsRefreshRequestTopic: news.refresh.request
+  newsRefreshResultTopic: news.refresh.result
+  consumerGroupId: hackonomics-fastapi-news
+
+# Points to Qdrant ClusterIP from hackonomics-infra umbrella chart.
+qdrant:
+  url: "http://hackonomics-qdrant:6333"
+  collection: business_news
+
+# JWKS from Hydra public endpoint — NOT Central-auth.
+security:
+  jwksUrl: "http://hackonomics-hydra:4444/.well-known/jwks.json"
+  jwtIssuer: "http://hackonomics-hydra:4444"
+  jwtAudience: hackonomics-api
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+appServiceMonitor:
+  interval: "30s"
+  scrapeTimeout: "10s"
+  metricsPath: /metrics
+  additionalLabels:
+    release: hackonomics

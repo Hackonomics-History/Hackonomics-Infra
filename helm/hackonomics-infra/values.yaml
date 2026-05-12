@@ -233,3 +233,24 @@ traefik:
 # ── Application ServiceMonitors ────────────────────────────────────────────────
 # ServiceMonitor resources for app workloads are now managed in their respective
 # standalone charts (hackonomics-app and hackonomics-auth).
+
+# ── Qdrant vector database ─────────────────────────────────────────────────────
+qdrant:
+  enabled: true
+  image:
+    repository: qdrant/qdrant
+    tag: "v1.9.2"
+    pullPolicy: IfNotPresent
+  service:
+    httpPort: 6333
+    grpcPort: 6334
+  storage:
+    size: 5Gi
+    storageClass: local-path
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi

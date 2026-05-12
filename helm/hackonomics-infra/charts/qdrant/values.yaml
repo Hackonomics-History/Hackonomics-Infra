@@ -1,0 +1,20 @@
+image:
+  repository: qdrant/qdrant
+  tag: "v1.9.2"
+  pullPolicy: IfNotPresent
+
+service:
+  httpPort: 6333   # REST API + Web UI
+  grpcPort: 6334   # gRPC API
+
+storage:
+  size: 5Gi
+  storageClass: local-path
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 2Gi

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hackonomics-kotlin.fullname" . }}
+  labels:
+    {{- include "hackonomics-kotlin.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "hackonomics-kotlin.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.app.httpPort }}
+      targetPort: http
+      protocol: TCP

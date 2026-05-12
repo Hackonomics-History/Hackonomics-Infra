@@ -150,6 +150,12 @@ services:
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic user-activities.retry-2 --partitions 3 --replication-factor 1 --config retention.ms=259200000 &&
         echo '[kafka-setup] Creating topic: user-activities.dlt' &&
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic user-activities.dlt --partitions 3 --replication-factor 1 --config retention.ms=604800000 &&
+        echo '[kafka-setup] Creating topic: blacklist-sync' &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic blacklist-sync --partitions 1 --replication-factor 1 &&
+        echo '[kafka-setup] Creating topic: news.refresh.request' &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic news.refresh.request --partitions 3 --replication-factor 1 &&
+        echo '[kafka-setup] Creating topic: news.refresh.result' &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic news.refresh.result --partitions 3 --replication-factor 1 &&
         echo '[kafka-setup] Done.'
 
   kafka-exporter:

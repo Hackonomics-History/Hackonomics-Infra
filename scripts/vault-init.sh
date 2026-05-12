@@ -4,13 +4,16 @@
 # =============================================================================
 # KV paths written (one per env source, variable names match the source file)
 # ─────────────────────────────────────────────────────────────────────────────
-#   secret/hackonomics/auth    ← Central-auth/env/.env.prod  (+ POSTGRES_DSN)
+#   secret/hackonomics/auth    ← Central-auth/env/.env.local  (+ POSTGRES_DSN)
 #                              → hackonomics-auth-env  K8s Secret
 #
-#   secret/hackonomics/django  ← Hackonomics-2026/env/.env.prod
-#                              → hackonomics-django-env K8s Secret
+#   secret/hackonomics/kotlin  ← backendKotlin/env/.env.local
+#                              → hackonomics-kotlin-env K8s Secret
 #
-#   secret/hackonomics/infra   ← Hackonomics-Infra/env/.env.prod
+#   secret/hackonomics/fastapi ← backendFastapi/env/.env.local
+#                              → hackonomics-fastapi-env K8s Secret
+#
+#   secret/hackonomics/infra   ← Hackonomics-Infra/env/.env.local
 #                              → hackonomics-infra-env  K8s Secret
 #
 #   secret/hackonomics/shared  ← .env.shared
@@ -41,9 +44,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 NAMESPACE="${NAMESPACE:-hackonomics}"
 
 SHARED_ENV="${REPO_ROOT}/.env.shared"
-CENTRAL_AUTH_ENV="${REPO_ROOT}/Central-auth/env/.env.prod"
-DJANGO_ENV="${REPO_ROOT}/Hackonomics-2026/env/.env.prod"
-INFRA_ENV="${REPO_ROOT}/Hackonomics-Infra/env/.env.prod"
+CENTRAL_AUTH_ENV="${REPO_ROOT}/Central-auth/env/.env.local"
+KOTLIN_ENV="${REPO_ROOT}/backendKotlin/env/.env.local"
+FASTAPI_ENV="${REPO_ROOT}/backendFastapi/env/.env.local"
+INFRA_ENV="${REPO_ROOT}/Hackonomics-Infra/env/.env.local"
 
 # ── Validate prerequisites ────────────────────────────────────────────────────
 if [[ -z "${VAULT_ROOT_TOKEN:-}" ]]; then
@@ -54,7 +58,7 @@ fi
 
 echo "==> [vault-init] Validating env sources"
 _MISSING=0
-for _f in "$SHARED_ENV" "$CENTRAL_AUTH_ENV" "$DJANGO_ENV" "$INFRA_ENV"; do
+for _f in "$SHARED_ENV" "$CENTRAL_AUTH_ENV" "$KOTLIN_ENV" "$FASTAPI_ENV" "$INFRA_ENV"; do
   if [[ ! -f "$_f" ]]; then
     echo "    ERROR: env file not found: ${_f}" >&2
     _MISSING=1
@@ -181,11 +185,9 @@ echo "==> [vault-init] Validating critical secrets"
 
 _KRATOS_COOKIE_SECRET="$(get_val "$CENTRAL_AUTH_ENV" KRATOS_COOKIE_SECRET)"
 _KRATOS_CIPHER_SECRET="$(get_val "$CENTRAL_AUTH_ENV" KRATOS_CIPHER_SECRET)"
-_DJANGO_SECRET_KEY="$(get_val    "$DJANGO_ENV"        DJANGO_SECRET_KEY)"
 
 require_secret "KRATOS_COOKIE_SECRET" "$_KRATOS_COOKIE_SECRET" 32
 require_secret "KRATOS_CIPHER_SECRET" "$_KRATOS_CIPHER_SECRET" 32
-require_secret "DJANGO_SECRET_KEY"    "$_DJANGO_SECRET_KEY"    32
 
 # ── Read POSTGRES_* from Central-auth for DSN synthesis ───────────────────────
 _PG_USER="$(get_val "$CENTRAL_AUTH_ENV" POSTGRES_USER)"
@@ -199,32 +201,41 @@ require_secret "POSTGRES_PASSWORD" "$_PG_PASS"
 require_secret "POSTGRES_HOST"     "$_PG_HOST"
 require_secret "POSTGRES_DB"       "$_PG_DB"
 
+
 # ── Write secrets to Vault ────────────────────────────────────────────────────
 echo "==> [vault-init] Writing secrets to Vault"
 
-# ── 1. hackonomics/auth — Central-auth/.env.prod (+ synthesized POSTGRES_DSN) ─
+# ── 1. hackonomics/auth — Central-auth/.env.local + .env.shared (merged) ──────
+# Both Central-auth app keys AND shared secrets (CENTRAL_AUTH_SERVICE_KEY, etc.)
+# are written here because the Central-auth pod only has one envFrom secretRef.
 TMP_AUTH="$(_vi_mktemp)"
 parse_env "$CENTRAL_AUTH_ENV" > "$TMP_AUTH"
+parse_env "$SHARED_ENV" >> "$TMP_AUTH"
 printf 'POSTGRES_DSN=postgres://%s:%s@%s:%s/%s?sslmode=disable\n' \
   "$_PG_USER" "$_PG_PASS" "$_PG_HOST" "${_PG_PORT:-5432}" "$_PG_DB" \
   >> "$TMP_AUTH"
 vault_put "hackonomics/auth" "$TMP_AUTH"
 
-# ── 2. hackonomics/django — Hackonomics-2026/.env.prod ───────────────────────
-TMP_DJANGO="$(_vi_mktemp)"
-parse_env "$DJANGO_ENV" > "$TMP_DJANGO"
-vault_put "hackonomics/django" "$TMP_DJANGO"
-
-# ── 3. hackonomics/infra — Hackonomics-Infra/.env.prod ───────────────────────
+# ── 2. hackonomics/infra — Hackonomics-Infra/.env.local ──────────────────────
 TMP_INFRA="$(_vi_mktemp)"
 parse_env "$INFRA_ENV" > "$TMP_INFRA"
 vault_put "hackonomics/infra" "$TMP_INFRA"
 
-# ── 4. hackonomics/shared — .env.shared ───────────────────────────────────────
+# ── 3. hackonomics/shared — .env.shared ───────────────────────────────────────
 TMP_SHARED="$(_vi_mktemp)"
 parse_env "$SHARED_ENV" > "$TMP_SHARED"
 vault_put "hackonomics/shared" "$TMP_SHARED"
 
+# ── 4. hackonomics/kotlin — backendKotlin/env/.env.local ──────────────────────
+TMP_KOTLIN="$(_vi_mktemp)"
+parse_env "$KOTLIN_ENV" > "$TMP_KOTLIN"
+vault_put "hackonomics/kotlin" "$TMP_KOTLIN"
+
+# ── 5. hackonomics/fastapi — backendFastapi/env/.env.local ────────────────────
+TMP_FASTAPI="$(_vi_mktemp)"
+parse_env "$FASTAPI_ENV" > "$TMP_FASTAPI"
+vault_put "hackonomics/fastapi" "$TMP_FASTAPI"
+
 echo "==> [vault-init] All secrets written to Vault successfully"
 echo "    Paths in secret/hackonomics/:"
-echo "      auth  django  infra  shared"
+echo "      auth  infra  shared  kotlin  fastapi"

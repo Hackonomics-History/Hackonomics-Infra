@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postgres-go.fullname" . }}-initdb
+  labels:
+    {{- include "postgres-go.labels" . | nindent 4 }}
+data:
+  01-extra-databases.sh: |
+    #!/bin/bash
+    set -e
+    psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<-SQL
+      CREATE USER kratos WITH PASSWORD '$POSTGRES_PASSWORD';
+      CREATE DATABASE kratos OWNER kratos;
+      GRANT ALL PRIVILEGES ON DATABASE kratos TO kratos;
+
+      CREATE USER hydra WITH PASSWORD '$POSTGRES_PASSWORD';
+      CREATE DATABASE hydra OWNER hydra;
+      GRANT ALL PRIVILEGES ON DATABASE hydra TO hydra;
+    SQL

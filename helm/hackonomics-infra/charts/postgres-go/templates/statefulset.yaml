@@ -30,6 +30,9 @@ spec:
             - name: data
               mountPath: /var/lib/postgresql/data
               subPath: pgdata
+            - name: initdb-scripts
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
           livenessProbe:
             exec:
               command:
@@ -53,6 +56,12 @@ spec:
             periodSeconds: 5
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+
+      volumes:
+        - name: initdb-scripts
+          configMap:
+            name: {{ include "postgres-go.fullname" . }}-initdb
+            defaultMode: 0755
 
   volumeClaimTemplates:
     - metadata:

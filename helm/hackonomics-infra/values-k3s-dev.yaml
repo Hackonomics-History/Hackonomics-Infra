@@ -47,7 +47,9 @@ promtail:
     tenantId: "hackonomics"
 
 hydra:
-  # Disabled until Kratos consent/login integration is wired up.
-  enabled: false
+  enabled: true
   # Pre-created by setup-secrets.sh from .env.shared + Hackonomics-Infra/env/.env.prod
-  existingSecret: hackonomics-infra-env
+  existingSecret: hackonomics-auth-env
+
+qdrant:
+  enabled: true
