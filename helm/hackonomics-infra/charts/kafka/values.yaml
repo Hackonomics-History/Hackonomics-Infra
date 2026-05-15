@@ -10,10 +10,15 @@ image:
   tag: "7.9.0"
   pullPolicy: IfNotPresent
 
+# Override to set KAFKA_ADVERTISED_LISTENERS host explicitly.
+# When empty, the configmap template computes the full service FQDN:
+#   <fullname>.<namespace>.svc.cluster.local
+# Set this explicitly in environment values files (e.g. values-k3s-dev.yaml).
+advertisedHost: ""
+
 service:
   internalPort: 9092
   controllerPort: 9093
-  externalPort: 19092
 
 resources:
   requests:
@@ -42,3 +47,12 @@ topics:
     partitions: 3
     replicationFactor: 1
     retentionMs: "604800000"
+  - name: news.refresh.request
+    partitions: 3
+    replicationFactor: 1
+  - name: news.refresh.result
+    partitions: 3
+    replicationFactor: 1
+  - name: blacklist-sync
+    partitions: 3
+    replicationFactor: 1

@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "hackonomics-fastapi.fullname" . }}
+  labels:
+    {{- include "hackonomics-fastapi.labels" . | nindent 4 }}
+    {{- with .Values.appServiceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "hackonomics-fastapi.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: {{ .Values.appServiceMonitor.metricsPath }}
+      interval: {{ .Values.appServiceMonitor.interval }}
+      scrapeTimeout: {{ .Values.appServiceMonitor.scrapeTimeout }}

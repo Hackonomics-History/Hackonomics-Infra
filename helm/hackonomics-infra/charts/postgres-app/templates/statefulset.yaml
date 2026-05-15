@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "postgres-app.fullname" . }}
+  labels:
+    {{- include "postgres-app.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "postgres-app.fullname" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "postgres-app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "postgres-app.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ default (include "postgres-app.fullname" .) .Values.existingSecret }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+  # Persistent volume claim template for PostgreSQL data storage (PVC in StatefulSet)
+  volumeClaimTemplates:
+      - metadata:
+          name: data
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: {{ .Values.storage.storageClass | quote }}
+          resources:
+            requests:
+              storage: {{ .Values.storage.size | quote }}

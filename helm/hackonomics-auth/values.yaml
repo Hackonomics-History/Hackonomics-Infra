@@ -1,0 +1,73 @@
+app:
+  image:
+    repository: central-auth
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  httpPort: 8081
+  grpcPort: 50051
+  metricsPort: 9091
+  # REQUIRED — override in environment-specific values file
+  sentryDsn: "CHANGE_ME_sentry_dsn"
+  serviceApiKey: "CHANGE_ME_service_api_key"
+  rateLimitRequestsPerMin: "60"
+  # If set, the chart skips creating its own Secret and deployments reference
+  # this pre-existing K8s Secret via envFrom. Use with k3s-setup.sh.
+  existingSecret: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Points to the postgres-go ClusterIP service produced by the umbrella chart.
+# With release name "hackonomics" this resolves to hackonomics-postgres-go.
+postgres:
+  host: hackonomics-postgres-go
+  port: "5432"
+  database: central_auth
+  user: central_auth
+  # REQUIRED — override in environment-specific values file
+  password: "CHANGE_ME_postgres_go_password"
+
+redis:
+  addr: hackonomics-redis-go:6379
+
+kafka:
+  brokers: hackonomics-kafka:9092
+
+pgbouncer:
+  image:
+    repository: edoburu/pgbouncer
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  # transaction mode: Go app issues short, discrete queries — no per-connection state
+  poolMode: transaction
+  maxClientConn: 100
+  defaultPoolSize: 20
+  listenPort: 6432
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+hpa:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+# ── ServiceMonitor ─────────────────────────────────────────────────────────────
+# Prometheus Operator scrape config for the Go BFF metrics port (9091).
+# The `release: hackonomics` label must match the Prometheus Operator's
+# serviceMonitorSelector configured in setup-infra.sh.
+appServiceMonitor:
+  interval: "30s"
+  scrapeTimeout: "10s"
+  metricsPath: /metrics
+  additionalLabels:
+    release: hackonomics

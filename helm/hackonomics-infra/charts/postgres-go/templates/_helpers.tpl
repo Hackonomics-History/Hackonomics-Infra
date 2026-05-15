@@ -12,7 +12,7 @@ Create a default fully qualified app name.
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- printf "%s-%s" .Release.Name "postgres-go" | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-postgres-go" .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
 

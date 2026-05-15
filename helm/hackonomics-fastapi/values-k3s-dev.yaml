@@ -1,0 +1,17 @@
+# K3s development overrides for the hackonomics-fastapi chart.
+# SECURITY: This file is committed to git — MUST NOT contain real secrets.
+# Image tags injected by Skaffold via setValueTemplates.
+
+# Ensures the Service/Deployment name is hackonomics-backend-fastapi regardless
+# of the Helm release name used during `skaffold dev`.
+fullnameOverride: hackonomics-backend-fastapi
+
+app:
+  image:
+    repository: k3d-hackonomics-registry:5001/backend-fastapi
+    pullPolicy: Always
+  existingSecret: hackonomics-fastapi-env
+
+hpa:
+  enabled: false
+  minReplicas: 1

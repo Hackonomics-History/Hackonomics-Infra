@@ -1,0 +1,56 @@
+# Loki values for k3s dev environment.
+# Applied by argocd/monitoring-app.yaml via multi-source valueFiles.
+# No secrets — Loki auth is disabled in dev (single-tenant mode).
+
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+
+  commonConfig:
+    replication_factor: 1
+
+  storage:
+    type: filesystem
+    bucketNames:
+      chunks: chunks
+      ruler: ruler
+      admin: admin
+
+  schemaConfig:
+    configs:
+      - from: "2026-04-10"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+singleBinary:
+  replicas: 1
+  persistence:
+    storageClass: local-path
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Disable multi-component replicas for single-binary mode.
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+# Gateway exposes the push/query API so Promtail can reach Loki from the
+# hackonomics namespace without a direct pod IP.
+gateway:
+  enabled: true
+  service:
+    type: ClusterIP

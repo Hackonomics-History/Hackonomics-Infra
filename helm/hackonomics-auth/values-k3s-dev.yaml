@@ -1,0 +1,12 @@
+# K3s development overrides for the hackonomics-auth standalone chart.
+# SECURITY: This file is committed to git — MUST NOT contain real secrets.
+# Image tags are injected by CI via --set app.image.tag=sha-XXXXXXXX.
+
+app:
+  image:
+    repository: ghcr.io/syjoe02/central-auth
+    pullPolicy: IfNotPresent
+  sentryDsn: "https://dev@sentry.example.com/1"
+  # Pre-created by Hackonomics-Infra CI via setup-secrets.sh from
+  # .env.shared + Central-auth/env/.env.prod
+  existingSecret: hackonomics-auth-env

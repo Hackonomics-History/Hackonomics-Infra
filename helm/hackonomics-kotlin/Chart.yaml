@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hackonomics-kotlin
+description: backendKotlin — Spring Boot 3 REST API, Kafka consumer, gRPC client
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

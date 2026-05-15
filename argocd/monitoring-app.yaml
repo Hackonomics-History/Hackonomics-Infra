@@ -1,0 +1,81 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hackonomics-monitoring
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Deploy monitoring after infra so Prometheus Operator CRDs are ready
+    # before app-namespace ServiceMonitors are evaluated.
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+
+  # ── Multi-source: upstream Helm chart + values from Git repo ─────────────────
+  # Requires ArgoCD 2.6+. The `$values` variable resolves to the ref source below.
+  # This pattern keeps Helm values in git (reviewable, diffable) while pulling
+  # the chart from the upstream Helm repository.
+  sources:
+    # ── Source 1: kube-prometheus-stack chart (upstream) ─────────────────────
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      # Pin to a minor-version range; bump here when upgrading.
+      targetRevision: ">=58.0.0 <60.0.0"
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/argocd/values/kube-prometheus-stack-k3s-dev.yaml
+
+    # ── Source 2: Loki chart (upstream) ───────────────────────────────────────
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: loki
+      targetRevision: ">=6.0.0 <7.0.0"
+      helm:
+        releaseName: loki
+        valueFiles:
+          - $values/argocd/values/loki-k3s-dev.yaml
+
+    # ── Source 3: values reference — Git repo ─────────────────────────────────
+    # This source is NOT deployed; it exists solely so the $values variable in
+    # sources 1 and 2 resolves to files in this Git repository.
+    - repoURL: https://github.com/syjoe02/Hackonomics-Infra.git
+      targetRevision: dev
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      # kube-prometheus-stack ships large CRDs; skip the schema validation that
+      # would reject them (ArgoCD validates against K8s OpenAPI schema by default).
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+    # kube-prometheus-stack manages its own status subresource on CRDs.
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jsonPointers:
+        - /status
+    # Prometheus operator sets certain spec fields dynamically.
+    - group: monitoring.coreos.com
+      kind: Prometheus
+      jsonPointers:
+        - /status
+    - group: monitoring.coreos.com
+      kind: Alertmanager
+      jsonPointers:
+        - /status

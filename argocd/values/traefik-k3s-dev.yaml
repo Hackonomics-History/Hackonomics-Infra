@@ -1,0 +1,18 @@
+# Traefik values for k3s dev environment.
+# Applied by argocd/traefik-app.yaml via multi-source valueFiles.
+# Replaces the setup-infra.sh `helm upgrade --install traefik` flags with a
+# committed, reviewable values file.
+
+ports:
+  web:
+    port: 80
+  websecure:
+    port: 443
+
+service:
+  type: LoadBalancer
+
+# Expose Traefik dashboard on a NodePort for local debugging.
+ingressRoute:
+  dashboard:
+    enabled: true

@@ -1,0 +1,69 @@
+# kube-prometheus-stack values for k3s dev environment.
+# Applied by argocd/monitoring-app.yaml via multi-source valueFiles.
+#
+# SECURITY: This file is committed to git and MUST NOT contain real secrets.
+# Grafana admin credentials are read from the pre-created K8s Secret
+# `hackonomics-infra-env` (provisioned by setup-secrets.sh).
+
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+    replicas: 1
+
+    # Pick up ServiceMonitors/PodMonitors labelled release=hackonomics.
+    serviceMonitorSelector:
+      matchLabels:
+        release: hackonomics
+    podMonitorSelector:
+      matchLabels:
+        release: hackonomics
+
+    # local-path PVC — no external storage needed for dev.
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          resources:
+            requests:
+              storage: 10Gi
+
+    # Right-sized for a 3-agent Mac k3d cluster.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+
+grafana:
+  # Credentials injected from pre-created K8s Secret; never set adminUser /
+  # adminPassword directly in this file.
+  admin:
+    existingSecret: hackonomics-infra-env
+    userKey: GRAFANA_ADMIN_USER
+    passwordKey: GRAFANA_ADMIN_PASSWORD
+
+  service:
+    type: NodePort
+    nodePort: 30300
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  # Load the Loki datasource ConfigMap so Grafana discovers Loki automatically.
+  sidecar:
+    datasources:
+      enabled: true
+      label: grafana_datasource
+      labelValue: "1"

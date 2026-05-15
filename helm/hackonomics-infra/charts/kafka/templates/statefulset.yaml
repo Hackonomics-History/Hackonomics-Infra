@@ -24,12 +24,14 @@ spec:
             - name: internal
               containerPort: {{ .Values.service.internalPort }}
               protocol: TCP
-            - name: external
-              containerPort: {{ .Values.service.externalPort }}
-              protocol: TCP
             - name: controller
               containerPort: {{ .Values.service.controllerPort }}
               protocol: TCP
+          env:
+            {{- range $key, $val := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "kafka.fullname" . }}-config

@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "kratos.fullname" . }}-migrate
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    spec:
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          args: ["migrate", "sql", "-e", "--yes"]
+          envFrom:
+            - secretRef:
+                name: {{ .Values.existingSecret }}
+          env:
+            - name: DSN
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@hackonomics-postgres-go:5432/kratos?sslmode=disable"
+      restartPolicy: Never

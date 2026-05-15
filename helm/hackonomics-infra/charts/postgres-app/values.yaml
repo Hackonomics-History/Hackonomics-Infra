@@ -1,0 +1,30 @@
+postgres:
+  database: myeconocoach
+  user: econ_user
+  password: ""
+
+# If set, the chart skips creating its own Secret and the StatefulSet
+# references this pre-existing K8s Secret via envFrom. Use with vault-init.sh.
+# hackonomics-infra-env is synced from secret/hackonomics/infra by ESO.
+# The infra env file must contain POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB.
+existingSecret: "hackonomics-infra-env"
+
+storage:
+  size: 5Gi
+  storageClass: local-path
+
+image:
+  repository: postgres
+  tag: "16-alpine"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 5432
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

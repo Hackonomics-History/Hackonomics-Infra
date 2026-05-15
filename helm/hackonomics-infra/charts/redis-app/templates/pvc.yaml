@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "redis-app.fullname" . }}-data
+  labels:
+    {{- include "redis-app.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.storage.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.size }}

@@ -6,7 +6,7 @@
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- printf "%s-%s" .Release.Name "redis-go" | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-redis-go" .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
 

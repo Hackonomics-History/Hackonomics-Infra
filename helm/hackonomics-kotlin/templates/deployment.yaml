@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hackonomics-kotlin.fullname" . }}
+  labels:
+    {{- include "hackonomics-kotlin.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.hpa.enabled }}
+  replicas: {{ .Values.hpa.minReplicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "hackonomics-kotlin.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "hackonomics-kotlin.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: backend-kotlin
+          image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.httpPort }}
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ default (include "hackonomics-kotlin.fullname" .) .Values.app.existingSecret }}
+          # Spring Boot startup is slow due to Hibernate validation — give it time.
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 12
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.app.resources | nindent 12 }}

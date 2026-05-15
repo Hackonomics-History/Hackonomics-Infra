@@ -1,0 +1,55 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hackonomics-root
+  namespace: argocd
+  # Cascade delete: removing this root Application removes ALL child Applications
+  # it manages. Remove the finalizer first if you want to detach without deleting.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Bootstrap instructions:
+    #   1. Install ArgoCD in the cluster (e.g. via Terraform or Helm).
+    #   2. Apply this manifest once to start the GitOps loop:
+    #        kubectl apply -f argocd/root-app.yaml -n argocd
+    #   3. ArgoCD discovers all Application CRDs under argocd/apps/ on the dev
+    #      branch and begins syncing them automatically.
+    #
+    # Webhook sync: register https://<argocd-server>/api/webhook in GitHub
+    # Settings → Webhooks (application/json, secret = ARGOCD_WEBHOOK_SECRET).
+    # ArgoCD then syncs immediately on push instead of waiting 3 minutes.
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/syjoe02/Hackonomics-Infra.git
+    # Tracks dev branch. Update targetRevision to 'main' for the prod root app.
+    targetRevision: dev
+    # ArgoCD discovers all Application CRDs in this directory and creates them
+    # as managed resources. This is the App-of-Apps pattern.
+    path: argocd/apps
+
+  destination:
+    server: https://kubernetes.default.svc
+    # Child Applications land in argocd namespace; their own spec.destination
+    # controls where their workloads are deployed.
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      # Remove child Applications from the cluster when their manifest is
+      # deleted from argocd/apps/.
+      prune: true
+      # Revert any manual edits to child Application objects made directly
+      # on the cluster.
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
