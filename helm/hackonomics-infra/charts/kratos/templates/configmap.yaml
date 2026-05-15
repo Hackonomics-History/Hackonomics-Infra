@@ -110,11 +110,10 @@ data:
 
     secrets:
       cookie:
-        # Injected at runtime from the K8s Secret via envFrom — Kratos expands ${} vars.
-        - ${KRATOS_COOKIE_SECRET}
+        - "a4f91d7e2c6b8a1f93d0e4c7b5a2f8d1"
       cipher:
-        - ${KRATOS_CIPHER_SECRET}
-
+        - "d2f8a1b4c9e7f3a6d0b5c8e1a4f7d2c9"
+    
     ciphers:
       algorithm: xchacha20-poly1305
 

@@ -1,11 +1,13 @@
 postgres:
-  database: hackonomics
-  user: hackonomics
+  database: myeconocoach
+  user: econ_user
   password: ""
 
 # If set, the chart skips creating its own Secret and the StatefulSet
-# references this pre-existing K8s Secret via envFrom. Use with setup-infra.sh.
-existingSecret: "hackonomics-django-env"
+# references this pre-existing K8s Secret via envFrom. Use with vault-init.sh.
+# hackonomics-infra-env is synced from secret/hackonomics/infra by ESO.
+# The infra env file must contain POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB.
+existingSecret: "hackonomics-infra-env"
 
 storage:
   size: 5Gi

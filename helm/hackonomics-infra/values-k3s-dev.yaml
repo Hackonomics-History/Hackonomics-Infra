@@ -12,27 +12,39 @@
 postgres-go:
   # Pre-created by setup-secrets.sh from .env.shared + Hackonomics-Infra/env/.env.prod
   existingSecret: hackonomics-auth-env
+  persistence:
+    enabled: false
 
-postgres-django:
-  # Pre-created by setup-secrets.sh from .env.shared + Hackonomics-Infra/env/.env.prod
-  existingSecret: hackonomics-django-env
+postgres-app:
+  # Synced from secret/hackonomics/infra by ESO → hackonomics-infra-env.
+  # infra/.env.local must include POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB.
+  existingSecret: hackonomics-infra-env
+  persistence:
+    enabled: false
 
 redis-go:
   # Pre-created by setup-secrets.sh from .env.shared + Hackonomics-Infra/env/.env.prod
-  existingSecret: hackonomics-infra-env
+  existingSecret: hackonomics-auth-env
+  persistence:
+    enabled: false
 
-redis-django:
+redis-app:
   # Pre-created by setup-secrets.sh from .env.shared + Hackonomics-Infra/env/.env.prod
   existingSecret: hackonomics-infra-env
+  persistence:
+    enabled: false
 
 # Kafka clusterId must be stable across restarts — generate once with:
 #   kubectl exec -it <kafka-pod> -- kafka-storage random-uuid
 # and commit the result here (it is not a secret).
 kafka:
-  clusterId: "MkU3OEVBNTcwNTJENDM2Qg"
-  # advertisedHost defaults to the chart fullname ("hackonomics-kafka") which is
-  # correct for in-cluster access. Override only if reaching Kafka from outside.
-  advertisedHost: "hackonomics-kafka"
+  clusterId: "442lPRE1TBG-csdKDvfRvQ"
+  # Use the full service FQDN so advertised.listeners is always routable,
+  # even from other namespaces. Short name "hackonomics-kafka" also works
+  # within the same namespace, but the FQDN avoids ambiguity in k3d/k3s.
+  advertisedHost: "hackonomics-kafka.hackonomics.svc.cluster.local"
+  persistence:
+    enabled: false
 
 kratos:
   # Pre-created by setup-secrets.sh from .env.shared + Hackonomics-Infra/env/.env.prod
@@ -53,3 +65,5 @@ hydra:
 
 qdrant:
   enabled: true
+  persistence:
+    enabled: false

@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "redis-django.fullname" . }}
+  name: {{ include "redis-app.fullname" . }}
   labels:
-    {{- include "redis-django.labels" . | nindent 4 }}
+    {{- include "redis-app.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "redis-django.fullname" . }}
+  serviceName: {{ include "redis-app.fullname" . }}
   replicas: 1
   selector:
     matchLabels:
-      {{- include "redis-django.selectorLabels" . | nindent 6 }}
+      {{- include "redis-app.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "redis-django.selectorLabels" . | nindent 8 }}
+        {{- include "redis-app.selectorLabels" . | nindent 8 }}
     spec:
       containers:
         - name: redis
@@ -51,4 +51,4 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: {{ include "redis-django.fullname" . }}-data
+            claimName: {{ include "redis-app.fullname" . }}-data

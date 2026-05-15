@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "postgres-django.fullname" . }}
+  name: {{ include "postgres-app.fullname" . }}
   labels:
-    {{- include "postgres-django.labels" . | nindent 4 }}
+    {{- include "postgres-app.labels" . | nindent 4 }}
 spec:
   type: ClusterIP
   selector:
-    {{- include "postgres-django.selectorLabels" . | nindent 4 }}
+    {{- include "postgres-app.selectorLabels" . | nindent 4 }}
   ports:
     - name: postgres
       port: {{ .Values.service.port }}

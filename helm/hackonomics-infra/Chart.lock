@@ -2,14 +2,14 @@ dependencies:
 - name: postgres-go
   repository: file://charts/postgres-go
   version: 0.1.0
-- name: postgres-django
-  repository: file://charts/postgres-django
+- name: postgres-app
+  repository: file://charts/postgres-app
   version: 0.1.0
 - name: redis-go
   repository: file://charts/redis-go
   version: 0.1.0
-- name: redis-django
-  repository: file://charts/redis-django
+- name: redis-app
+  repository: file://charts/redis-app
   version: 0.1.0
 - name: kafka
   repository: file://charts/kafka
@@ -17,11 +17,14 @@ dependencies:
 - name: kratos
   repository: file://charts/kratos
   version: 0.1.0
-- name: promtail
-  repository: file://charts/promtail
-  version: 0.1.0
 - name: hydra
   repository: file://charts/hydra
   version: 0.1.0
-digest: sha256:d439c858663f341f4edc61f88775816c5d876eab3a5e3659dbcaa8081d97651e
-generated: "2026-04-20T15:51:38.940854+09:00"
+- name: qdrant
+  repository: file://charts/qdrant
+  version: 0.1.0
+- name: promtail
+  repository: file://charts/promtail
+  version: 0.1.0
+digest: sha256:c2eb566af8d921d1e500985fc761c938b46de8198aac4dd15caed2378afeb2aa
+generated: "2026-05-13T20:22:15.711662+09:00"

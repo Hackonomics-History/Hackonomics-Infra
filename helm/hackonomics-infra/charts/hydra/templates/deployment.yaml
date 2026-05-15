@@ -29,8 +29,20 @@ spec:
             - migrate
             - sql
             - --yes
+            - --read-from-env
             - --config
             - /etc/config/hydra/hydra.yml
+          env:
+            - name: DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-secrets" (include "hydra.fullname" .)) .Values.existingSecret }}
+                  key: POSTGRES_DSN
+            - name: SECRETS_SYSTEM
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-secrets" (include "hydra.fullname" .)) .Values.existingSecret }}
+                  key: HYDRA_SYSTEM_SECRET
           envFrom:
             - secretRef:
                 name: {{ default (printf "%s-secrets" (include "hydra.fullname" .)) .Values.existingSecret }}
@@ -46,6 +58,7 @@ spec:
           args:
             - serve
             - all
+            - --dev
             - --config
             - /etc/config/hydra/hydra.yml
           ports:
@@ -55,6 +68,17 @@ spec:
             - name: admin
               containerPort: {{ .Values.serve.admin.port }}
               protocol: TCP
+          env:
+          - name: DSN
+            valueFrom:
+              secretKeyRef:
+                name: {{ default (printf "%s-secrets" (include "hydra.fullname" .)) .Values.existingSecret }}
+                key: POSTGRES_DSN
+          - name: SECRETS_SYSTEM
+            valueFrom:
+              secretKeyRef:
+                name: {{ default (printf "%s-secrets" (include "hydra.fullname" .)) .Values.existingSecret }}
+                key: HYDRA_SYSTEM_SECRET
           envFrom:
             - secretRef:
                 name: {{ default (printf "%s-secrets" (include "hydra.fullname" .)) .Values.existingSecret }}

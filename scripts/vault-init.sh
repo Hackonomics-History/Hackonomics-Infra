@@ -2,22 +2,20 @@
 # =============================================================================
 # vault-init.sh — Write hackonomics secrets into Vault KV
 # =============================================================================
-# KV paths written (one per env source, variable names match the source file)
+# KV paths written (.env.shared is merged into every path — no standalone shared)
 # ─────────────────────────────────────────────────────────────────────────────
-#   secret/hackonomics/auth    ← Central-auth/env/.env.local  (+ POSTGRES_DSN)
+#   secret/hackonomics/auth    ← Central-auth/env/.env.local + .env.shared + POSTGRES_DSN
 #                              → hackonomics-auth-env  K8s Secret
 #
-#   secret/hackonomics/kotlin  ← backendKotlin/env/.env.local
+#   secret/hackonomics/kotlin  ← backendKotlin/env/.env.local + .env.shared
 #                              → hackonomics-kotlin-env K8s Secret
 #
-#   secret/hackonomics/fastapi ← backendFastapi/env/.env.local
+#   secret/hackonomics/fastapi ← backendFastapi/env/.env.local + .env.shared
 #                              → hackonomics-fastapi-env K8s Secret
 #
-#   secret/hackonomics/infra   ← Hackonomics-Infra/env/.env.local
+#   secret/hackonomics/infra   ← Hackonomics-Infra/env/.env.local + .env.shared
 #                              → hackonomics-infra-env  K8s Secret
-#
-#   secret/hackonomics/shared  ← .env.shared
-#                              → hackonomics-shared-env K8s Secret
+#                                (also used by postgres-app, redis-go, redis-app)
 #
 # Usage
 # ─────────────────────────────────────────────────────────────────────────────
@@ -205,9 +203,8 @@ require_secret "POSTGRES_DB"       "$_PG_DB"
 # ── Write secrets to Vault ────────────────────────────────────────────────────
 echo "==> [vault-init] Writing secrets to Vault"
 
-# ── 1. hackonomics/auth — Central-auth/.env.local + .env.shared (merged) ──────
-# Both Central-auth app keys AND shared secrets (CENTRAL_AUTH_SERVICE_KEY, etc.)
-# are written here because the Central-auth pod only has one envFrom secretRef.
+# ── 1. hackonomics/auth — Central-auth/.env.local + .env.shared + POSTGRES_DSN ─
+# Central-auth pod uses a single envFrom secretRef, so all required keys live here.
 TMP_AUTH="$(_vi_mktemp)"
 parse_env "$CENTRAL_AUTH_ENV" > "$TMP_AUTH"
 parse_env "$SHARED_ENV" >> "$TMP_AUTH"
@@ -216,26 +213,27 @@ printf 'POSTGRES_DSN=postgres://%s:%s@%s:%s/%s?sslmode=disable\n' \
   >> "$TMP_AUTH"
 vault_put "hackonomics/auth" "$TMP_AUTH"
 
-# ── 2. hackonomics/infra — Hackonomics-Infra/.env.local ──────────────────────
-TMP_INFRA="$(_vi_mktemp)"
-parse_env "$INFRA_ENV" > "$TMP_INFRA"
-vault_put "hackonomics/infra" "$TMP_INFRA"
-
-# ── 3. hackonomics/shared — .env.shared ───────────────────────────────────────
-TMP_SHARED="$(_vi_mktemp)"
-parse_env "$SHARED_ENV" > "$TMP_SHARED"
-vault_put "hackonomics/shared" "$TMP_SHARED"
-
-# ── 4. hackonomics/kotlin — backendKotlin/env/.env.local ──────────────────────
+# ── 2. hackonomics/kotlin — backendKotlin/.env.local + .env.shared ─────────────
 TMP_KOTLIN="$(_vi_mktemp)"
 parse_env "$KOTLIN_ENV" > "$TMP_KOTLIN"
+parse_env "$SHARED_ENV" >> "$TMP_KOTLIN"
 vault_put "hackonomics/kotlin" "$TMP_KOTLIN"
 
-# ── 5. hackonomics/fastapi — backendFastapi/env/.env.local ────────────────────
+# ── 3. hackonomics/fastapi — backendFastapi/.env.local + .env.shared ───────────
 TMP_FASTAPI="$(_vi_mktemp)"
 parse_env "$FASTAPI_ENV" > "$TMP_FASTAPI"
+parse_env "$SHARED_ENV" >> "$TMP_FASTAPI"
 vault_put "hackonomics/fastapi" "$TMP_FASTAPI"
+
+# ── 4. hackonomics/infra — Hackonomics-Infra/.env.local + .env.shared ──────────
+# Also referenced by postgres-app, redis-go, redis-app as existingSecret.
+# infra/.env.local must contain POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
+# for postgres-app in addition to GRAFANA_ADMIN_PASSWORD / METRICS_BASIC_AUTH_*.
+TMP_INFRA="$(_vi_mktemp)"
+parse_env "$INFRA_ENV" > "$TMP_INFRA"
+parse_env "$SHARED_ENV" >> "$TMP_INFRA"
+vault_put "hackonomics/infra" "$TMP_INFRA"
 
 echo "==> [vault-init] All secrets written to Vault successfully"
 echo "    Paths in secret/hackonomics/:"
-echo "      auth  infra  shared  kotlin  fastapi"
+echo "      auth  kotlin  fastapi  infra"

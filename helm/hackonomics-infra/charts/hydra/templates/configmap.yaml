@@ -6,13 +6,12 @@ metadata:
     {{- include "hydra.labels" . | nindent 4 }}
 data:
   hydra.yml: |
-    version: v2
+    version: v2.2.0
 
-    dsn: {{ .Values.dsn | quote }}
+    dsn: ${DSN}
 
     serve:
       public:
-        base_url: {{ .Values.serve.public.baseUrl | quote }}
         port: {{ .Values.serve.public.port }}
         cors:
           enabled: {{ .Values.serve.public.corsEnabled }}
@@ -29,19 +28,17 @@ data:
             - Authorization
             - Content-Type
       admin:
-        base_url: {{ .Values.serve.admin.baseUrl | quote }}
         port: {{ .Values.serve.admin.port }}
 
     urls:
       self:
         issuer: {{ .Values.urls.selfIssuer | quote }}
-      consent: {{ .Values.urls.consent | quote }}
+
       login: {{ .Values.urls.login | quote }}
+      consent: {{ .Values.urls.consent | quote }}
       logout: {{ .Values.urls.logout | quote }}
       post_logout_redirect: {{ .Values.urls.postLogoutRedirect | quote }}
 
-    # secrets.system is injected at runtime from the K8s Secret via envFrom.
-    # Hydra reads SECRETS_SYSTEM from the environment and uses it for HMAC signing.
     secrets:
       system:
         - ${SECRETS_SYSTEM}

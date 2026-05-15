@@ -9,24 +9,21 @@ dependencies:
   - name: postgres-go
     version: 0.1.0
     repository: "file://charts/postgres-go"
-  - name: postgres-django
+  - name: postgres-app
     version: 0.1.0
-    repository: "file://charts/postgres-django"
+    repository: "file://charts/postgres-app"
   - name: redis-go
     version: 0.1.0
     repository: "file://charts/redis-go"
-  - name: redis-django
+  - name: redis-app
     version: 0.1.0
-    repository: "file://charts/redis-django"
+    repository: "file://charts/redis-app"
   - name: kafka
     version: 0.1.0
     repository: "file://charts/kafka"
   - name: kratos
     version: 0.1.0
     repository: "file://charts/kratos"
-  - name: promtail
-    version: 0.1.0
-    repository: "file://charts/promtail"
   - name: hydra
     version: 0.1.0
     repository: "file://charts/hydra"
@@ -35,3 +32,6 @@ dependencies:
     version: 0.1.0
     repository: "file://charts/qdrant"
     condition: qdrant.enabled
+  - name: promtail
+    version: 0.1.0
+    repository: "file://charts/promtail"

@@ -36,13 +36,13 @@ urls:
 
 # secrets.system is a 32+ byte signing key for HMAC tokens.
 # REQUIRED — inject via K8s Secret; never set here.
-# The existingSecret below must contain key SECRETS_SYSTEM.
+# The existingSecret below must contain key HYDRA_SYSTEM_SECRET.
 secrets: {}
 
-# If set, the Deployment uses envFrom to load SECRETS_SYSTEM and DSN
+# If set, the Deployment uses envFrom to load HYDRA_SYSTEM_SECRET and DSN
 # (and any other overrides) from this pre-created K8s Secret instead of
 # creating its own.
-existingSecret: ""
+existingSecret: "hackonomics-auth-env"
 
 service:
   publicPort: 4444

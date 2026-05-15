@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "postgres-django.fullname" . }}
+  name: {{ include "postgres-app.fullname" . }}
   labels:
-    {{- include "postgres-django.labels" . | nindent 4 }}
+    {{- include "postgres-app.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "postgres-django.fullname" . }}
+  serviceName: {{ include "postgres-app.fullname" . }}
   replicas: 1
   selector:
     matchLabels:
-      {{- include "postgres-django.selectorLabels" . | nindent 6 }}
+      {{- include "postgres-app.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "postgres-django.selectorLabels" . | nindent 8 }}
+        {{- include "postgres-app.selectorLabels" . | nindent 8 }}
     spec:
       containers:
         - name: postgres
@@ -25,7 +25,7 @@ spec:
               protocol: TCP
           envFrom:
             - secretRef:
-                name: {{ default (include "postgres-django.fullname" .) .Values.existingSecret }}
+                name: {{ default (include "postgres-app.fullname" .) .Values.existingSecret }}
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data

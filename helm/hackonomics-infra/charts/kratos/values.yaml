@@ -18,13 +18,13 @@ database:
 
 serve:
   public:
-    baseUrl: "http://kratos:4433/"
+    baseUrl: "http://hackonomics-kratos:4433/"
     cors:
       allowedOrigins:
         - "http://localhost:5173"
         - "http://localhost:3000"
   admin:
-    baseUrl: "http://kratos:4434/"
+    baseUrl: "http://hackonomics-kratos:4434/"
 
 selfservice:
   defaultBrowserReturnUrl: "http://localhost:3000/"
@@ -47,7 +47,7 @@ selfservice:
 
 courier:
   smtp:
-    connectionUri: "smtps://test:test@mailslurper:1025/?skip_ssl_verify=true"
+    connectionUri: "smtp://mailslurper:1025/?skip_ssl_verify=true"
 
 # secrets and oidc credentials are injected exclusively through K8s Secrets
 # (existingSecret) and expanded in kratos.yml via ${ENV_VAR} substitution.

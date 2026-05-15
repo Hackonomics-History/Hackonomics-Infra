@@ -24,12 +24,12 @@ postgres-go:
       cpu: 500m
       memory: 512Mi
 
-postgres-django:
+postgres-app:
   postgres:
-    database: hackonomics
-    user: hackonomics
+    database: myeconocoach
+    user: econ_user
     # REQUIRED — override in environment-specific values file
-    password: "CHANGE_ME_postgres_django_password"
+    password: "CHANGE_ME_postgres_app_password"
   storage:
     size: 5Gi
     storageClass: local-path
@@ -65,7 +65,7 @@ redis-go:
       cpu: 200m
       memory: 256Mi
 
-redis-django:
+redis-app:
   storage:
     size: 2Gi
     storageClass: local-path
@@ -126,6 +126,12 @@ kafka:
     - name: blacklist-sync
       partitions: 3
       replicationFactor: 1
+    - name: news.refresh.request
+      partitions: 3
+      replicationFactor: 1
+    - name: news.refresh.result
+      partitions: 3
+      replicationFactor: 1
 
 kratos:
   replicaCount: 1
@@ -175,7 +181,7 @@ kratos:
 
 promtail:
   loki:
-    url: "http://loki:3100/loki/api/v1/push"
+    url: "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
     tenantId: "hackonomics"
 
 hydra:
@@ -220,7 +226,6 @@ hydra:
 
 # ── Traefik IngressRoute values ───────────────────────────────────────────────
 # Service names derive from the release name prefix (e.g. "hackonomics-kratos").
-# Django ingress routes are now managed by the hackonomics-app chart.
 
 traefik:
   serviceMonitor:
